@@ -1,0 +1,36 @@
+services:
+  tinypay-server:
+    build: .
+    image: tinypay-server
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    environment:
+      - PORT=9090
+      - APTOS_NETWORK=devnet
+      - APTOS_NODE_URL=https://fullnode.devnet.aptoslabs.com/v1
+      - APTOS_FAUCET_URL=https://faucet.devnet.aptoslabs.com
+      # Add your environment variables here or use .env file
+      # - CONTRACT_ADDRESS=your_contract_address
+      # - MERCHANT_PRIVATE_KEY=your_merchant_private_key
+      # - PAYMASTER_PRIVATE_KEY=your_paymaster_private_key
+    env_file:
+      - .env  # Load environment variables from .env file
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    volumes:
+      - ./logs:/app/logs  # Map log directory to host (optional)
+    networks:
+      - tinypay-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+
+networks:
+  tinypay-network:
+    driver: bridge

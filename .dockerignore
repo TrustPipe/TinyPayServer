@@ -1,0 +1,55 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+README.md
+API_DOCUMENTATION.md
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+logs/
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+tinypay-server
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test files
+*_test.go
+
+# CI/CD
+.gitlab-ci.yml
+.github/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Examples
+examples/
+
+# Makefile
+Makefile
+
+# License
+LICENSE
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
