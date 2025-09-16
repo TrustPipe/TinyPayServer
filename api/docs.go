@@ -1,12 +1,14 @@
 package api
 
 import (
-	"io/ioutil"
+	_ "embed"
 	"net/http"
-	"path/filepath"
 
 	"github.com/gin-gonic/gin"
 )
+
+//go:embed openapi.yaml
+var openapiSpec string
 
 // SetupSwaggerUI sets up Swagger UI for API documentation
 func SetupSwaggerUI(router *gin.Engine) {
@@ -76,15 +78,8 @@ func SetupSwaggerUI(router *gin.Engine) {
 func ServeOpenAPISpec(c *gin.Context) {
 	c.Header("Content-Type", "application/x-yaml")
 	
-	// Read the OpenAPI spec file directly
-	specPath := filepath.Join("api", "openapi.yaml")
-	yamlContent, err := ioutil.ReadFile(specPath)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read OpenAPI spec"})
-		return
-	}
-	
-	c.String(http.StatusOK, string(yamlContent))
+	// Use embedded OpenAPI spec
+	c.String(http.StatusOK, openapiSpec)
 }
 
 // SetupDocumentationRoutes sets up all documentation related routes
