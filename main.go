@@ -48,19 +48,30 @@ func main() {
 	})
 
 	// API routes
-	api := router.Group("/api/v1")
+	api := router.Group("/api")
 	{
 		// Health check
 		api.GET("/health", handler.HealthCheck)
 
+		// Payment API endpoints according to documentation
+		api.POST("/payments", handler.CreatePayment)
+		api.GET("/payments/:transaction_hash", handler.GetTransactionStatus)
+	}
+
+	// Legacy API routes (v1) - keeping for backward compatibility
+	legacyApi := router.Group("/api/v1")
+	{
+		// Health check
+		legacyApi.GET("/health", handler.HealthCheck)
+
 		// Merchant precommit endpoint
-		api.POST("/merchant/precommit", handler.MerchantPrecommit)
+		legacyApi.POST("/merchant/precommit", handler.MerchantPrecommit)
 
 		// Payment completion endpoint
-		api.POST("/payment/complete", handler.CompletePayment)
+		legacyApi.POST("/payment/complete", handler.CompletePayment)
 
 		// Utility endpoint to compute payment hash
-		api.POST("/utils/compute-hash", handler.ComputePaymentHash)
+		legacyApi.POST("/utils/compute-hash", handler.ComputePaymentHash)
 	}
 
 	// Start server

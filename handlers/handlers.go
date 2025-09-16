@@ -64,6 +64,36 @@ type ComputeHashResponse struct {
 	Message string `json:"message,omitempty"`
 }
 
+// PaymentRequest represents the request body for creating a payment
+type PaymentRequest struct {
+	PayerAddr  string `json:"payer_addr" binding:"required"`  // 付款地址 hex格式
+	Opt        string `json:"opt" binding:"required"`         // OPT hex格式
+	PayeeAddr  string `json:"payee_addr" binding:"required"`  // 收款地址 hex格式
+	Amount     uint64 `json:"amount" binding:"required"`      // 金额 uint类型
+	Currency   string `json:"currency"`                       // 货币种类
+}
+
+// PaymentResponse represents the response for payment creation
+type PaymentResponse struct {
+	Status          string   `json:"status,omitempty"`
+	TransactionHash string   `json:"transaction_hash,omitempty"`
+	Message         string   `json:"message,omitempty"`
+	Error           string   `json:"error,omitempty"`
+	MissingFields   []string `json:"missing_fields,omitempty"`
+	Details         string   `json:"details,omitempty"`
+}
+
+// TransactionStatusResponse represents the response for transaction status query
+type TransactionStatusResponse struct {
+	Status          string `json:"status"`
+	TransactionHash string `json:"transaction_hash"`
+	Success         *bool  `json:"success,omitempty"`
+	ReceivedAmount  string `json:"received_amount,omitempty"`
+	Currency        string `json:"currency,omitempty"`
+	Message         string `json:"message"`
+	Error           string `json:"error,omitempty"`
+}
+
 // MerchantPrecommit handles the merchant precommit request
 func (h *Handler) MerchantPrecommit(c *gin.Context) {
 	var req PrecommitRequest
@@ -219,6 +249,129 @@ func (h *Handler) ComputePaymentHash(c *gin.Context) {
 		Hash:    hex.EncodeToString(hash),
 		Message: "Hash computed successfully",
 	})
+}
+
+// CreatePayment handles the payment creation request
+func (h *Handler) CreatePayment(c *gin.Context) {
+	var req PaymentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		// Check for missing fields
+		missingFields := []string{}
+		if req.PayerAddr == "" {
+			missingFields = append(missingFields, "payer_addr")
+		}
+		if req.Opt == "" {
+			missingFields = append(missingFields, "opt")
+		}
+		if req.PayeeAddr == "" {
+			missingFields = append(missingFields, "payee_addr")
+		}
+		if req.Amount == 0 {
+			missingFields = append(missingFields, "amount")
+		}
+
+		if len(missingFields) > 0 {
+			c.JSON(http.StatusBadRequest, PaymentResponse{
+				Error:         "missing_fields",
+				Message:       "缺少必需字段",
+				MissingFields: missingFields,
+			})
+			return
+		}
+
+		c.JSON(http.StatusBadRequest, PaymentResponse{
+			Error:   "invalid_request",
+			Message: "Invalid request body: " + err.Error(),
+		})
+		return
+	}
+
+	// Set default currency to APT if not provided
+	if req.Currency == "" {
+		req.Currency = "APT"
+	}
+
+	// Convert hex strings to bytes
+	optBytes, err := hex.DecodeString(req.Opt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, PaymentResponse{
+			Error:   "simulation_failed",
+			Message: "交易不合法，模拟失败",
+			Details: "Invalid opt format: " + err.Error(),
+		})
+		return
+	}
+
+	// Simulate the transaction first
+	err = h.aptosClient.SimulatePayment(optBytes, req.PayerAddr, req.PayeeAddr, req.Amount)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, PaymentResponse{
+			Error:   "simulation_failed",
+			Message: "交易不合法，模拟失败",
+			Details: err.Error(),
+		})
+		return
+	}
+
+	// Submit the transaction
+	txHash, err := h.aptosClient.SubmitPayment(optBytes, req.PayerAddr, req.PayeeAddr, req.Amount)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, PaymentResponse{
+			Error:   "simulation_failed",
+			Message: "交易不合法，模拟失败",
+			Details: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, PaymentResponse{
+		Status:          "submitted",
+		TransactionHash: txHash,
+		Message:         "交易模拟成功，已提交到区块链",
+	})
+}
+
+// GetTransactionStatus handles the transaction status query
+func (h *Handler) GetTransactionStatus(c *gin.Context) {
+	txHash := c.Param("transaction_hash")
+	if txHash == "" {
+		c.JSON(http.StatusBadRequest, TransactionStatusResponse{
+			Status:          "error",
+			TransactionHash: "",
+			Message:         "Transaction hash is required",
+		})
+		return
+	}
+
+	// Check transaction status
+	confirmed, err := h.aptosClient.GetTransactionStatus(txHash)
+	if err != nil {
+		c.JSON(http.StatusNotFound, TransactionStatusResponse{
+			Status:          "not_found",
+			TransactionHash: txHash,
+			Message:         "交易不存在",
+			Error:           "not_found",
+		})
+		return
+	}
+
+	if confirmed {
+		success := true
+		c.JSON(http.StatusOK, TransactionStatusResponse{
+			Status:          "confirmed",
+			TransactionHash: txHash,
+			Success:         &success,
+			ReceivedAmount:  "0", // This would need to be extracted from transaction details
+			Currency:        "APT",
+			Message:         "交易已经被区块链确认",
+		})
+	} else {
+		c.JSON(http.StatusOK, TransactionStatusResponse{
+			Status:          "pending",
+			TransactionHash: txHash,
+			Message:         "交易正在处理中",
+		})
+	}
 }
 
 // HealthCheck provides a simple health check endpoint
