@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 
 	"github.com/aptos-labs/aptos-go-sdk"
 	"github.com/aptos-labs/aptos-go-sdk/bcs"
@@ -394,6 +396,14 @@ func (ac *AptosClient) SimulatePayment(opt []byte, payer, recipient string, amou
 	return nil
 }
 
+// TransactionInfo contains detailed transaction information
+type TransactionInfo struct {
+	Confirmed bool
+	Success   bool
+	Amount    uint64
+	Error     string
+}
+
 // GetTransactionStatus gets the status of a transaction by hash
 func (ac *AptosClient) GetTransactionStatus(txHash string) (bool, error) {
 	log.Printf("Getting transaction status for hash: %s", txHash)
@@ -407,6 +417,93 @@ func (ac *AptosClient) GetTransactionStatus(txHash string) (bool, error) {
 
 	// Transaction is confirmed
 	return true, nil
+}
+
+// GetTransactionDetails gets detailed information about a transaction
+func (ac *AptosClient) GetTransactionDetails(txHash string) (*TransactionInfo, error) {
+	log.Printf("Getting transaction details for hash: %s", txHash)
+
+	// Try to wait for transaction to check if it exists and is confirmed
+	txnResult, err := ac.client.WaitForTransaction(txHash)
+	if err != nil {
+		// Transaction might be pending or failed
+		return &TransactionInfo{
+			Confirmed: false,
+			Success:   false,
+			Amount:    0,
+			Error:     err.Error(),
+		}, nil
+	}
+
+	// Transaction is confirmed, extract amount from events
+	amount := uint64(0)
+	success := txnResult.Success
+
+	// Parse transaction events to extract the actual amount
+	log.Printf("Transaction has %d events", len(txnResult.Events))
+	if txnResult.Events != nil {
+		for i, event := range txnResult.Events {
+			log.Printf("Event %d: Type=%s, Data=%+v", i, event.Type, event.Data)
+			
+			// Prioritize fungible_asset events for amount extraction
+			if event.Type == "0x1::fungible_asset::Withdraw" || event.Type == "0x1::fungible_asset::Deposit" {
+				if amountStr, exists := event.Data["amount"]; exists {
+					log.Printf("Found amount in fungible_asset event: %v (type: %T)", amountStr, amountStr)
+					if amountFloat, ok := amountStr.(float64); ok {
+						amount = uint64(amountFloat)
+						log.Printf("Parsed fungible_asset amount as float64: %d", amount)
+						break // Use the first fungible_asset amount found
+					} else if amountString, ok := amountStr.(string); ok {
+						if parsedAmount, parseErr := strconv.ParseUint(amountString, 10, 64); parseErr == nil {
+							amount = parsedAmount
+							log.Printf("Parsed fungible_asset amount as string: %d", amount)
+							break // Use the first fungible_asset amount found
+						}
+					}
+				}
+			}
+		}
+		
+		// If no fungible_asset amount found, try other event types
+		if amount == 0 {
+			for i, event := range txnResult.Events {
+				log.Printf("Fallback check Event %d: Type=%s", i, event.Type)
+				
+				// Look for other coin transfer events
+				if event.Type == "0x1::coin::WithdrawEvent" || 
+				   event.Type == "0x1::coin::DepositEvent" ||
+				   event.Type == "0x1::aptos_coin::WithdrawEvent" ||
+				   event.Type == "0x1::aptos_coin::DepositEvent" ||
+				   strings.Contains(event.Type, "PaymentCompleted") {
+					
+					// Try to extract amount from event data
+					if amountStr, exists := event.Data["amount"]; exists {
+						log.Printf("Found amount in fallback event: %v (type: %T)", amountStr, amountStr)
+						if amountFloat, ok := amountStr.(float64); ok {
+							amount = uint64(amountFloat)
+							log.Printf("Parsed fallback amount as float64: %d", amount)
+							break
+						} else if amountString, ok := amountStr.(string); ok {
+							if parsedAmount, parseErr := strconv.ParseUint(amountString, 10, 64); parseErr == nil {
+								amount = parsedAmount
+								log.Printf("Parsed fallback amount as string: %d", amount)
+								break
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	log.Printf("Final extracted amount: %d octas", amount)
+
+	return &TransactionInfo{
+		Confirmed: true,
+		Success:   success,
+		Amount:    amount,
+		Error:     "",
+	}, nil
 }
 
 // SubmitPayment creates and submits a payment transaction

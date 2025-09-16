@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
+	"tinypay-server/api"
 	"tinypay-server/client"
 	"tinypay-server/config"
 	"tinypay-server/handlers"
@@ -29,6 +30,9 @@ func main() {
 
 	// Initialize handlers
 	handler := handlers.NewHandler(aptosClient)
+	
+	// Initialize OpenAPI server
+	apiServer := api.NewAPIServer(aptosClient)
 
 	// Setup Gin router
 	router := gin.Default()
@@ -47,16 +51,11 @@ func main() {
 		c.Next()
 	})
 
-	// API routes
-	api := router.Group("/api")
-	{
-		// Health check
-		api.GET("/health", handler.HealthCheck)
-
-		// Payment API endpoints according to documentation
-		api.POST("/payments", handler.CreatePayment)
-		api.GET("/payments/:transaction_hash", handler.GetTransactionStatus)
-	}
+	// OpenAPI generated routes
+	api.RegisterHandlers(router, apiServer)
+	
+	// Setup API documentation
+	api.SetupDocumentationRoutes(router)
 
 	// Legacy API routes (v1) - keeping for backward compatibility
 	legacyApi := router.Group("/api/v1")

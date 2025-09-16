@@ -40,7 +40,7 @@ func LoadConfig() *Config {
 		AptosNodeURL:        getEnv("APTOS_NODE_URL", "https://fullnode.devnet.aptoslabs.com/v1"),
 		AptosFaucetURL:      getEnv("APTOS_FAUCET_URL", "https://faucet.devnet.aptoslabs.com"),
 		ContractAddress:     getEnv("CONTRACT_ADDRESS", ""),
-		Port:                getEnv("PORT", "8080"),
+		Port:                getEnv("PORT", "9090"),
 		MerchantPrivateKey:  getEnv("MERCHANT_PRIVATE_KEY", ""),
 		PaymasterPrivateKey: getEnv("PAYMASTER_PRIVATE_KEY", ""),
 		MaxGasAmount:        getEnvUint64("MAX_GAS_AMOUNT", 100000),

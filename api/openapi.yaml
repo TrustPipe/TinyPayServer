@@ -1,0 +1,396 @@
+openapi: 3.0.3
+info:
+  title: TinyPay API
+  description: |
+    基于 RESTful 规范的支付接口，支持 Aptos 区块链交易处理。
+
+    ## 使用流程
+    1. 前端调用 `POST /api/payments` 创建支付交易
+    2. 服务器检查字段完整性
+    3. 服务器进行交易模拟验证
+    4. 模拟成功则返回交易哈希并提交到区块链，模拟失败则返回错误信息
+    5. 前端收到交易哈希后，使用 `GET /api/payments/{transaction_hash}` 轮询查询状态
+    6. 等待状态变为 `confirmed` 或 `failed`
+  version: 1.0.0
+  contact:
+    name: TinyPay API Support
+  license:
+    name: MIT
+servers:
+  - url: http://localhost:9090
+    description: Development server
+  - url: https://api.tinypay.example.com
+    description: Production server
+
+paths:
+  /api/payments:
+    post:
+      summary: 创建支付交易
+      description: |
+        创建新的支付交易，服务器会先检查字段完整性，然后进行交易模拟，模拟成功后返回交易哈希并上链提交。
+      operationId: createPayment
+      tags:
+        - payments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+            examples:
+              basic_payment:
+                summary: 基本支付示例
+                value:
+                  payer_addr: "0x1234567890abcdef1234567890abcdef12345678"
+                  opt: "deadbeef"
+                  payee_addr: "0xabcdef1234567890abcdef1234567890abcdef12"
+                  amount: 1000000
+                  currency: "APT"
+      responses:
+        '200':
+          description: 交易模拟成功，已提交到区块链
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentSuccessResponse'
+              examples:
+                success:
+                  summary: 成功提交交易
+                  value:
+                    status: "submitted"
+                    transaction_hash: "0x1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890"
+                    message: "交易模拟成功，已提交到区块链"
+        '400':
+          description: 请求错误
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/MissingFieldsError'
+                  - $ref: '#/components/schemas/SimulationFailedError'
+              examples:
+                missing_fields:
+                  summary: 缺少必需字段
+                  value:
+                    error: "missing_fields"
+                    message: "缺少必需字段"
+                    missing_fields: ["payer_addr", "amount"]
+                simulation_failed:
+                  summary: 交易模拟失败
+                  value:
+                    error: "simulation_failed"
+                    message: "交易不合法，模拟失败"
+                    details: "Invalid opt format: encoding/hex: invalid byte: U+0067 'g'"
+
+  /api/payments/{transaction_hash}:
+    get:
+      summary: 查询交易状态
+      description: 根据交易哈希查询交易状态和详情。
+      operationId: getTransactionStatus
+      tags:
+        - payments
+      parameters:
+        - name: transaction_hash
+          in: path
+          required: true
+          description: 交易哈希值
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{64}$'
+            example: "0x1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890"
+      responses:
+        '200':
+          description: 交易状态查询成功
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/TransactionPendingResponse'
+                  - $ref: '#/components/schemas/TransactionConfirmedResponse'
+                  - $ref: '#/components/schemas/TransactionFailedResponse'
+              examples:
+                pending:
+                  summary: 交易处理中
+                  value:
+                    status: "pending"
+                    transaction_hash: "0x1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890"
+                    message: "交易正在处理中"
+                confirmed:
+                  summary: 交易确认成功
+                  value:
+                    status: "confirmed"
+                    transaction_hash: "0x1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890"
+                    success: true
+                    received_amount: "1000000"
+                    currency: "APT"
+                    message: "交易已经被区块链确认"
+                failed:
+                  summary: 交易失败
+                  value:
+                    status: "failed"
+                    transaction_hash: "0x1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890"
+                    success: false
+                    error: "insufficient_balance"
+                    message: "交易失败"
+        '404':
+          description: 交易不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionNotFoundError'
+              examples:
+                not_found:
+                  summary: 交易不存在
+                  value:
+                    error: "not_found"
+                    message: "交易不存在"
+
+  /api/health:
+    get:
+      summary: 健康检查
+      description: 检查服务器状态和配置信息
+      operationId: healthCheck
+      tags:
+        - system
+      responses:
+        '200':
+          description: 服务器健康状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                healthy:
+                  summary: 服务器正常
+                  value:
+                    status: "healthy"
+                    merchant_address: "0x1234567890abcdef1234567890abcdef12345678"
+                    paymaster_address: "0xabcdef1234567890abcdef1234567890abcdef12"
+
+components:
+  schemas:
+    PaymentRequest:
+      type: object
+      required:
+        - payer_addr
+        - opt
+        - payee_addr
+        - amount
+      properties:
+        payer_addr:
+          type: string
+          description: 付款地址 hex格式
+          pattern: '^0x[a-fA-F0-9]{1,64}$'
+          example: "0x1234567890abcdef1234567890abcdef12345678"
+        opt:
+          type: string
+          description: OPT hex格式
+          pattern: '^[a-fA-F0-9]+$'
+          example: "deadbeef"
+        payee_addr:
+          type: string
+          description: 收款地址 hex格式
+          pattern: '^0x[a-fA-F0-9]{1,64}$'
+          example: "0xabcdef1234567890abcdef1234567890abcdef12"
+        amount:
+          type: integer
+          format: int64
+          minimum: 1
+          description: 金额 uint类型
+          example: 1000000
+        currency:
+          type: string
+          description: 货币种类
+          default: "APT"
+          enum: ["APT"]
+          example: "APT"
+
+    PaymentSuccessResponse:
+      type: object
+      required:
+        - status
+        - transaction_hash
+        - message
+      properties:
+        status:
+          type: string
+          enum: ["submitted"]
+          description: 交易状态
+        transaction_hash:
+          type: string
+          description: 交易哈希
+          pattern: '^0x[a-fA-F0-9]{64}$'
+          example: "0x1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890"
+        message:
+          type: string
+          description: 响应消息
+          example: "交易模拟成功，已提交到区块链"
+
+    MissingFieldsError:
+      type: object
+      required:
+        - error
+        - message
+        - missing_fields
+      properties:
+        error:
+          type: string
+          enum: ["missing_fields"]
+          description: 错误类型
+        message:
+          type: string
+          description: 错误消息
+          example: "缺少必需字段"
+        missing_fields:
+          type: array
+          items:
+            type: string
+          description: 缺失的字段列表
+          example: ["payer_addr", "amount"]
+
+    SimulationFailedError:
+      type: object
+      required:
+        - error
+        - message
+        - details
+      properties:
+        error:
+          type: string
+          enum: ["simulation_failed"]
+          description: 错误类型
+        message:
+          type: string
+          description: 错误消息
+          example: "交易不合法，模拟失败"
+        details:
+          type: string
+          description: 具体错误信息
+          example: "Invalid opt format: encoding/hex: invalid byte: U+0067 'g'"
+
+    TransactionPendingResponse:
+      type: object
+      required:
+        - status
+        - transaction_hash
+        - message
+      properties:
+        status:
+          type: string
+          enum: ["pending"]
+          description: 交易状态
+        transaction_hash:
+          type: string
+          description: 交易哈希
+          pattern: '^0x[a-fA-F0-9]{64}$'
+        message:
+          type: string
+          description: 响应消息
+          example: "交易正在处理中"
+
+    TransactionConfirmedResponse:
+      type: object
+      required:
+        - status
+        - transaction_hash
+        - success
+        - received_amount
+        - currency
+        - message
+      properties:
+        status:
+          type: string
+          enum: ["confirmed"]
+          description: 交易状态
+        transaction_hash:
+          type: string
+          description: 交易哈希
+          pattern: '^0x[a-fA-F0-9]{64}$'
+        success:
+          type: boolean
+          description: 交易是否成功
+          example: true
+        received_amount:
+          type: string
+          description: 实际收到的金额
+          example: "1000000"
+        currency:
+          type: string
+          description: 货币种类
+          example: "APT"
+        message:
+          type: string
+          description: 响应消息
+          example: "交易已经被区块链确认"
+
+    TransactionFailedResponse:
+      type: object
+      required:
+        - status
+        - transaction_hash
+        - success
+        - error
+        - message
+      properties:
+        status:
+          type: string
+          enum: ["failed"]
+          description: 交易状态
+        transaction_hash:
+          type: string
+          description: 交易哈希
+          pattern: '^0x[a-fA-F0-9]{64}$'
+        success:
+          type: boolean
+          description: 交易是否成功
+          example: false
+        error:
+          type: string
+          description: 错误信息
+          example: "insufficient_balance"
+        message:
+          type: string
+          description: 响应消息
+          example: "交易失败"
+
+    TransactionNotFoundError:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          enum: ["not_found"]
+          description: 错误类型
+        message:
+          type: string
+          description: 错误消息
+          example: "交易不存在"
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - merchant_address
+      properties:
+        status:
+          type: string
+          description: 服务器状态
+          example: "healthy"
+        merchant_address:
+          type: string
+          description: 商户地址
+          pattern: '^0x[a-fA-F0-9]{1,64}$'
+          example: "0x1234567890abcdef1234567890abcdef12345678"
+        paymaster_address:
+          type: string
+          description: 付费主地址（可选）
+          pattern: '^0x[a-fA-F0-9]{1,64}$'
+          example: "0xabcdef1234567890abcdef1234567890abcdef12"
+
+tags:
+  - name: payments
+    description: 支付相关接口
+  - name: system
+    description: 系统相关接口

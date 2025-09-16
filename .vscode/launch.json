@@ -1,0 +1,20 @@
+{
+    // https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch Service",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/main.go",
+            "env": {
+                // "http_proxy": "http://localhost:7897",
+                // "https_proxy": "http://localhost:7897",
+                // "all_proxy": "socks5://localhost:7897"
+            },
+            "args": [
+            ],
+        },
+    ]
+}
