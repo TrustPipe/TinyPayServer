@@ -7,15 +7,17 @@ import (
 	"log"
 	"strconv"
 
+	"tinypay-server/config"
+
 	"github.com/aptos-labs/aptos-go-sdk"
 	"github.com/aptos-labs/aptos-go-sdk/bcs"
-	"tinypay-server/config"
+	"github.com/aptos-labs/aptos-go-sdk/crypto"
 )
 
 type AptosClient struct {
-	client          *aptos.Client
-	config          *config.Config
-	merchantAccount *aptos.Account
+	client           *aptos.Client
+	config           *config.Config
+	merchantAccount  *aptos.Account
 	paymasterAccount *aptos.Account
 }
 
@@ -52,9 +54,19 @@ func NewAptosClient(cfg *config.Config) (*AptosClient, error) {
 	// Load paymaster account if provided
 	var paymasterAccount *aptos.Account
 	if cfg.PaymasterPrivateKey != "" {
-		paymasterAccount, err = aptos.NewEd25519Account()
+		// paymasterAccount, err = aptos.NewEd25519Account()
+		// if err != nil {
+		// 	return nil, fmt.Errorf("failed to create paymaster account: %w", err)
+		// }
+		// Create a sender locally
+		key := crypto.Ed25519PrivateKey{}
+		err = key.FromHex(cfg.PaymasterPrivateKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create paymaster account: %w", err)
+			panic("Failed to decode Ed25519 private key:" + err.Error())
+		}
+		paymasterAccount, err = aptos.NewAccountFromSigner(&key)
+		if err != nil {
+			panic("Failed to create sender:" + err.Error())
 		}
 	}
 
@@ -82,7 +94,7 @@ func (ac *AptosClient) MerchantPrecommit(commitHash []byte) (string, error) {
 		aptos.TransactionPayload{
 			Payload: &aptos.EntryFunction{
 				Module: aptos.ModuleId{
-					Address: *parseAccountAddress(ac.config.ContractAddress),
+					Address: parseAccountAddress(ac.config.ContractAddress),
 					Name:    "tinypay",
 				},
 				Function: "merchant_precommit",
@@ -146,12 +158,12 @@ func (ac *AptosClient) CompletePayment(opt []byte, payer, recipient string, amou
 		return "", fmt.Errorf("failed to serialize opt: %w", err)
 	}
 
-	payerBytes, err := bcs.Serialize(payerAddr)
+	payerBytes, err := bcs.Serialize(&payerAddr)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize payer address: %w", err)
 	}
 
-	recipientBytes, err := bcs.Serialize(recipientAddr)
+	recipientBytes, err := bcs.Serialize(&recipientAddr)
 	if err != nil {
 		return "", fmt.Errorf("failed to serialize recipient address: %w", err)
 	}
@@ -182,7 +194,7 @@ func (ac *AptosClient) CompletePayment(opt []byte, payer, recipient string, amou
 		aptos.TransactionPayload{
 			Payload: &aptos.EntryFunction{
 				Module: aptos.ModuleId{
-					Address: *parseAccountAddress(ac.config.ContractAddress),
+					Address: parseAccountAddress(ac.config.ContractAddress),
 					Name:    "tinypay",
 				},
 				Function: "complete_payment",
@@ -243,12 +255,12 @@ func (ac *AptosClient) ComputePaymentHash(payer, recipient string, amount uint64
 	recipientAddr := parseAccountAddress(recipient)
 
 	// Serialize parameters in the same order as the contract
-	payerBytes, err := bcs.Serialize(payerAddr)
+	payerBytes, err := bcs.Serialize(&payerAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize payer address: %w", err)
 	}
 
-	recipientBytes, err := bcs.Serialize(recipientAddr)
+	recipientBytes, err := bcs.Serialize(&recipientAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serialize recipient address: %w", err)
 	}
@@ -299,9 +311,38 @@ func (ac *AptosClient) GetPaymasterAddress() string {
 }
 
 // SimulatePayment simulates a payment transaction without submitting it
-func (ac *AptosClient) SimulatePayment(opt []byte, payer, recipient string, amount uint64) error {
+func (ac *AptosClient) SimulatePayment(opt []byte, payer, recipient string, amount uint64) (*aptos.Account, *aptos.RawTransaction, error) {
 	log.Printf("Simulating payment - Payer: %s, Recipient: %s, Amount: %d", payer, recipient, amount)
 
+	caller, rawTxn, err := ac.paymentsRawTx(opt, payer, recipient, amount)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Simulate transaction
+	simulationResult, err := ac.client.SimulateTransaction(rawTxn, caller)
+	if err != nil {
+		return nil, nil, fmt.Errorf("transaction simulation failed: %w", err)
+	}
+
+	// Check if simulation was successful
+	if len(simulationResult) == 0 || !simulationResult[0].Success {
+		if len(simulationResult) > 0 {
+			log.Printf("Transaction simulation failed: %s", simulationResult[0].VmStatus)
+			return nil, nil, fmt.Errorf("transaction simulation failed: %s", simulationResult[0].VmStatus)
+		}
+		return nil, nil, fmt.Errorf("transaction simulation failed: unknown error")
+	}
+
+	log.Printf("Simulation successful - Gas used: %d, Gas unit price: %d, Total fee: %d",
+		simulationResult[0].GasUsed,
+		simulationResult[0].GasUnitPrice,
+		simulationResult[0].GasUsed*simulationResult[0].GasUnitPrice)
+
+	return caller, rawTxn, nil
+}
+
+func (ac *AptosClient) paymentsRawTx(opt []byte, payer string, recipient string, amount uint64) (*aptos.Account, *aptos.RawTransaction, error) {
 	// Parse addresses
 	payerAddr := parseAccountAddress(payer)
 	recipientAddr := parseAccountAddress(recipient)
@@ -309,41 +350,41 @@ func (ac *AptosClient) SimulatePayment(opt []byte, payer, recipient string, amou
 	// Serialize parameters
 	optBytes, err := bcs.SerializeBytes(opt)
 	if err != nil {
-		return fmt.Errorf("failed to serialize opt: %w", err)
+		return nil, nil, fmt.Errorf("failed to serialize opt: %w", err)
 	}
 
-	payerBytes, err := bcs.Serialize(payerAddr)
+	payerBytes, err := bcs.Serialize(&payerAddr)
 	if err != nil {
-		return fmt.Errorf("failed to serialize payer address: %w", err)
+		return nil, nil, fmt.Errorf("failed to serialize payer address: %w", err)
 	}
 
-	recipientBytes, err := bcs.Serialize(recipientAddr)
+	recipientBytes, err := bcs.Serialize(&recipientAddr)
 	if err != nil {
-		return fmt.Errorf("failed to serialize recipient address: %w", err)
+		return nil, nil, fmt.Errorf("failed to serialize recipient address: %w", err)
 	}
 
 	amountBytes, err := bcs.SerializeU64(amount)
 	if err != nil {
-		return fmt.Errorf("failed to serialize amount: %w", err)
+		return nil, nil, fmt.Errorf("failed to serialize amount: %w", err)
 	}
 
-	// Compute commit hash for simulation
-	commitHash, err := ac.ComputePaymentHash(payer, recipient, amount, opt)
-	if err != nil {
-		return fmt.Errorf("failed to compute commit hash: %w", err)
-	}
-
-	commitHashBytes, err := bcs.SerializeBytes(commitHash)
-	if err != nil {
-		return fmt.Errorf("failed to serialize commit hash: %w", err)
-	}
-
+	var commitHash []byte
 	// Choose the caller (merchant or paymaster)
 	var caller *aptos.Account
 	if ac.paymasterAccount != nil {
 		caller = ac.paymasterAccount
 	} else {
 		caller = ac.merchantAccount
+		// Compute commit hash for simulation
+		commitHash, err = ac.ComputePaymentHash(payer, recipient, amount, opt)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to compute commit hash: %w", err)
+		}
+	}
+
+	commitHashBytes, err := bcs.SerializeBytes(commitHash)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to serialize commit hash: %w", err)
 	}
 
 	// Build transaction for simulation
@@ -352,7 +393,7 @@ func (ac *AptosClient) SimulatePayment(opt []byte, payer, recipient string, amou
 		aptos.TransactionPayload{
 			Payload: &aptos.EntryFunction{
 				Module: aptos.ModuleId{
-					Address: *parseAccountAddress(ac.config.ContractAddress),
+					Address: parseAccountAddress(ac.config.ContractAddress),
 					Name:    "tinypay",
 				},
 				Function: "complete_payment",
@@ -370,29 +411,9 @@ func (ac *AptosClient) SimulatePayment(opt []byte, payer, recipient string, amou
 		aptos.GasUnitPrice(ac.config.GasUnitPrice),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to build transaction: %w", err)
+		return nil, nil, fmt.Errorf("failed to build transaction: %w", err)
 	}
-
-	// Simulate transaction
-	simulationResult, err := ac.client.SimulateTransaction(rawTxn, caller)
-	if err != nil {
-		return fmt.Errorf("transaction simulation failed: %w", err)
-	}
-
-	// Check if simulation was successful
-	if len(simulationResult) == 0 || !simulationResult[0].Success {
-		if len(simulationResult) > 0 {
-			return fmt.Errorf("transaction simulation failed: %s", simulationResult[0].VmStatus)
-		}
-		return fmt.Errorf("transaction simulation failed: unknown error")
-	}
-
-	log.Printf("Simulation successful - Gas used: %d, Gas unit price: %d, Total fee: %d",
-		simulationResult[0].GasUsed,
-		simulationResult[0].GasUnitPrice,
-		simulationResult[0].GasUsed*simulationResult[0].GasUnitPrice)
-
-	return nil
+	return caller, rawTxn, nil
 }
 
 // TransactionInfo contains detailed transaction information
@@ -439,15 +460,15 @@ func (ac *AptosClient) GetTransactionDetails(txHash string) (*TransactionInfo, e
 		log.Printf("Transaction has %d events", len(txnResult.Events))
 		for i, event := range txnResult.Events {
 			log.Printf("Event %d: Type=%s, Data=%+v", i, event.Type, event.Data)
-			
+
 			// Look for coin transfer events to extract amount
-			if event.Type == "0x1::coin::WithdrawEvent" || 
-			   event.Type == "0x1::coin::DepositEvent" ||
-			   event.Type == "0x1::aptos_coin::WithdrawEvent" ||
-			   event.Type == "0x1::aptos_coin::DepositEvent" ||
-			   event.Type == "0x1::fungible_asset::Withdraw" || 
-			   event.Type == "0x1::fungible_asset::Deposit" {
-				
+			if event.Type == "0x1::coin::WithdrawEvent" ||
+				event.Type == "0x1::coin::DepositEvent" ||
+				event.Type == "0x1::aptos_coin::WithdrawEvent" ||
+				event.Type == "0x1::aptos_coin::DepositEvent" ||
+				event.Type == "0x1::fungible_asset::Withdraw" ||
+				event.Type == "0x1::fungible_asset::Deposit" {
+
 				if amountStr, exists := event.Data["amount"]; exists {
 					log.Printf("Found amount in event: %v (type: %T)", amountStr, amountStr)
 					if amountFloat, ok := amountStr.(float64); ok {
@@ -465,7 +486,7 @@ func (ac *AptosClient) GetTransactionDetails(txHash string) (*TransactionInfo, e
 			}
 		}
 	}
-	
+
 	log.Printf("Final extracted amount: %d octas", amount)
 
 	return &TransactionInfo{
@@ -481,82 +502,9 @@ func (ac *AptosClient) SubmitPayment(opt []byte, payer, recipient string, amount
 	log.Printf("Submitting payment - Payer: %s, Recipient: %s, Amount: %d", payer, recipient, amount)
 
 	// First simulate the transaction
-	err := ac.SimulatePayment(opt, payer, recipient, amount)
+	caller, rawTxn, err := ac.SimulatePayment(opt, payer, recipient, amount)
 	if err != nil {
 		return "", fmt.Errorf("simulation failed: %w", err)
-	}
-
-	// Parse addresses
-	payerAddr := parseAccountAddress(payer)
-	recipientAddr := parseAccountAddress(recipient)
-
-	// Serialize parameters
-	optBytes, err := bcs.SerializeBytes(opt)
-	if err != nil {
-		return "", fmt.Errorf("failed to serialize opt: %w", err)
-	}
-
-	payerBytes, err := bcs.Serialize(payerAddr)
-	if err != nil {
-		return "", fmt.Errorf("failed to serialize payer address: %w", err)
-	}
-
-	recipientBytes, err := bcs.Serialize(recipientAddr)
-	if err != nil {
-		return "", fmt.Errorf("failed to serialize recipient address: %w", err)
-	}
-
-	amountBytes, err := bcs.SerializeU64(amount)
-	if err != nil {
-		return "", fmt.Errorf("failed to serialize amount: %w", err)
-	}
-
-	// Compute commit hash
-	commitHash, err := ac.ComputePaymentHash(payer, recipient, amount, opt)
-	if err != nil {
-		return "", fmt.Errorf("failed to compute commit hash: %w", err)
-	}
-
-	commitHashBytes, err := bcs.SerializeBytes(commitHash)
-	if err != nil {
-		return "", fmt.Errorf("failed to serialize commit hash: %w", err)
-	}
-
-	// Choose the caller (merchant or paymaster)
-	var caller *aptos.Account
-	if ac.paymasterAccount != nil {
-		caller = ac.paymasterAccount
-		log.Println("Using paymaster account as caller")
-	} else {
-		caller = ac.merchantAccount
-		log.Println("Using merchant account as caller")
-	}
-
-	// Build transaction
-	rawTxn, err := ac.client.BuildTransaction(
-		caller.AccountAddress(),
-		aptos.TransactionPayload{
-			Payload: &aptos.EntryFunction{
-				Module: aptos.ModuleId{
-					Address: *parseAccountAddress(ac.config.ContractAddress),
-					Name:    "tinypay",
-				},
-				Function: "complete_payment",
-				ArgTypes: []aptos.TypeTag{},
-				Args: [][]byte{
-					optBytes,
-					payerBytes,
-					recipientBytes,
-					amountBytes,
-					commitHashBytes,
-				},
-			},
-		},
-		aptos.MaxGasAmount(ac.config.MaxGasAmount),
-		aptos.GasUnitPrice(ac.config.GasUnitPrice),
-	)
-	if err != nil {
-		return "", fmt.Errorf("failed to build transaction: %w", err)
 	}
 
 	// Sign transaction
@@ -576,8 +524,8 @@ func (ac *AptosClient) SubmitPayment(opt []byte, payer, recipient string, amount
 }
 
 // Helper function to parse account address
-func parseAccountAddress(addr string) *aptos.AccountAddress {
-	address := &aptos.AccountAddress{}
+func parseAccountAddress(addr string) aptos.AccountAddress {
+	address := aptos.AccountAddress{}
 	err := address.ParseStringRelaxed(addr)
 	if err != nil {
 		panic("Failed to parse address: " + addr + ", error: " + err.Error())

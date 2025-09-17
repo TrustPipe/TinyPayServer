@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
 	"tinypay-server/client"
+	"tinypay-server/utils"
+
+	"github.com/gin-gonic/gin"
 )
 
 type Handler struct {
@@ -34,11 +36,11 @@ type PrecommitResponse struct {
 
 // CompletePaymentRequest represents the request body for payment completion
 type CompletePaymentRequest struct {
-	Opt         string `json:"opt" binding:"required"`         // Hex string of opt value
-	Payer       string `json:"payer" binding:"required"`       // Payer address
-	Recipient   string `json:"recipient" binding:"required"`   // Recipient address
-	Amount      string `json:"amount" binding:"required"`      // Amount as string to handle large numbers
-	CommitHash  string `json:"commit_hash" binding:"required"` // Hex string of commit hash
+	Opt        string `json:"opt" binding:"required"`         // Hex string of opt value
+	Payer      string `json:"payer" binding:"required"`       // Payer address
+	Recipient  string `json:"recipient" binding:"required"`   // Recipient address
+	Amount     string `json:"amount" binding:"required"`      // Amount as string to handle large numbers
+	CommitHash string `json:"commit_hash" binding:"required"` // Hex string of commit hash
 }
 
 // CompletePaymentResponse represents the response for payment completion
@@ -66,11 +68,11 @@ type ComputeHashResponse struct {
 
 // PaymentRequest represents the request body for creating a payment
 type PaymentRequest struct {
-	PayerAddr  string `json:"payer_addr" binding:"required"`  // 付款地址 hex格式
-	Opt        string `json:"opt" binding:"required"`         // OPT hex格式
-	PayeeAddr  string `json:"payee_addr" binding:"required"`  // 收款地址 hex格式
-	Amount     uint64 `json:"amount" binding:"required"`      // 金额 uint类型
-	Currency   string `json:"currency"`                       // 货币种类
+	PayerAddr string `json:"payer_addr" binding:"required"` // 付款地址 hex格式
+	Opt       string `json:"opt" binding:"required"`        // OPT hex格式
+	PayeeAddr string `json:"payee_addr" binding:"required"` // 收款地址 hex格式
+	Amount    uint64 `json:"amount" binding:"required"`     // 金额 uint类型
+	Currency  string `json:"currency"`                      // 货币种类
 }
 
 // PaymentResponse represents the response for payment creation
@@ -146,14 +148,7 @@ func (h *Handler) CompletePayment(c *gin.Context) {
 	}
 
 	// Convert hex strings to bytes
-	optBytes, err := hex.DecodeString(req.Opt)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, CompletePaymentResponse{
-			Success: false,
-			Message: "Invalid opt format: " + err.Error(),
-		})
-		return
-	}
+	optBytes := utils.HexToASCIIBytes(req.Opt)
 
 	commitHashBytes, err := hex.DecodeString(req.CommitHash)
 	if err != nil {
@@ -181,7 +176,7 @@ func (h *Handler) CompletePayment(c *gin.Context) {
 		if callerAddr == "" {
 			callerAddr = h.aptosClient.GetMerchantAddress()
 		}
-		
+
 		c.JSON(http.StatusInternalServerError, CompletePaymentResponse{
 			Success:       false,
 			Message:       "Failed to complete payment: " + err.Error(),
@@ -303,7 +298,7 @@ func (h *Handler) CreatePayment(c *gin.Context) {
 	}
 
 	// Simulate the transaction first
-	err = h.aptosClient.SimulatePayment(optBytes, req.PayerAddr, req.PayeeAddr, req.Amount)
+	_, _, err = h.aptosClient.SimulatePayment([]byte(req.Opt), req.PayerAddr, req.PayeeAddr, req.Amount)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, PaymentResponse{
 			Error:   "simulation_failed",
@@ -377,8 +372,8 @@ func (h *Handler) GetTransactionStatus(c *gin.Context) {
 // HealthCheck provides a simple health check endpoint
 func (h *Handler) HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"status":           "healthy",
-		"merchant_address": h.aptosClient.GetMerchantAddress(),
+		"status":            "healthy",
+		"merchant_address":  h.aptosClient.GetMerchantAddress(),
 		"paymaster_address": h.aptosClient.GetPaymasterAddress(),
 	})
 }

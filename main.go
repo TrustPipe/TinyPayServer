@@ -3,11 +3,12 @@ package main
 import (
 	"log"
 
-	"github.com/gin-gonic/gin"
 	"tinypay-server/api"
 	"tinypay-server/client"
 	"tinypay-server/config"
 	"tinypay-server/handlers"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -30,7 +31,7 @@ func main() {
 
 	// Initialize handlers
 	handler := handlers.NewHandler(aptosClient)
-	
+
 	// Initialize OpenAPI server
 	apiServer := api.NewAPIServer(aptosClient)
 
@@ -53,7 +54,7 @@ func main() {
 
 	// OpenAPI generated routes
 	api.RegisterHandlers(router, apiServer)
-	
+
 	// Setup API documentation
 	api.SetupDocumentationRoutes(router)
 

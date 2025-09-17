@@ -1,9 +1,11 @@
 package api
 
 import (
-	"encoding/hex"
+	"fmt"
+	"log"
 	"net/http"
 	"strconv"
+	"tinypay-server/utils"
 
 	"tinypay-server/client"
 
@@ -67,12 +69,16 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 	}
 
 	// Convert hex strings to bytes
-	optBytes, err := hex.DecodeString(req.Opt)
-	if err != nil {
-		response := CreateApiResponseWithNullData(CodeInvalidOpt)
-		c.JSON(http.StatusBadRequest, response)
-		return
+	optBytes := utils.HexToASCIIBytes(req.Opt)
+	log.Printf("\nAptos CLI format for opt:\n")
+	fmt.Printf("u8:[")
+	for i, b := range optBytes {
+		if i > 0 {
+			fmt.Printf(",")
+		}
+		fmt.Printf("%d", b)
 	}
+	fmt.Printf("]\n")
 
 	// Convert amount to uint64
 	amount := uint64(req.Amount)
@@ -85,8 +91,9 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 	}
 
 	// Simulate the transaction first
-	err = s.aptosClient.SimulatePayment(optBytes, req.PayerAddr, req.PayeeAddr, amount)
+	_, _, err := s.aptosClient.SimulatePayment(optBytes, req.PayerAddr, req.PayeeAddr, amount)
 	if err != nil {
+		// todo:
 		// Randomly return one of the validation error codes (2000-2003)
 		errorCodes := []int{CodeAmountMustBePositive, CodeAmountExceedsLimit, CodeInsufficientBalance, CodeInvalidOpt}
 		randomCode := errorCodes[len(err.Error())%len(errorCodes)]
@@ -98,6 +105,7 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 	// Submit the transaction
 	txHash, err := s.aptosClient.SubmitPayment(optBytes, req.PayerAddr, req.PayeeAddr, amount)
 	if err != nil {
+		// todo:
 		// Randomly return one of the validation error codes (2000-2003)
 		errorCodes := []int{CodeAmountMustBePositive, CodeAmountExceedsLimit, CodeInsufficientBalance, CodeInvalidOpt}
 		randomCode := errorCodes[len(err.Error())%len(errorCodes)]
