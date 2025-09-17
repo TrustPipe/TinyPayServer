@@ -14,7 +14,7 @@ import (
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// 健康检查
-	// (GET /api/health)
+	// (GET /api)
 	HealthCheck(c *gin.Context)
 	// 创建支付交易
 	// (POST /api/payments)
@@ -110,7 +110,7 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 		ErrorHandler:       errorHandler,
 	}
 
-	router.GET(options.BaseURL+"/api/health", wrapper.HealthCheck)
+	router.GET(options.BaseURL+"/api", wrapper.HealthCheck)
 	router.POST(options.BaseURL+"/api/payments", wrapper.CreatePayment)
 	router.GET(options.BaseURL+"/api/payments/:transaction_hash", wrapper.GetTransactionStatus)
 }

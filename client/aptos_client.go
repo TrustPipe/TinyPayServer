@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"strconv"
-	"strings"
 
 	"github.com/aptos-labs/aptos-go-sdk"
 	"github.com/aptos-labs/aptos-go-sdk/bcs"
@@ -423,72 +422,43 @@ func (ac *AptosClient) GetTransactionStatus(txHash string) (bool, error) {
 func (ac *AptosClient) GetTransactionDetails(txHash string) (*TransactionInfo, error) {
 	log.Printf("Getting transaction details for hash: %s", txHash)
 
-	// Try to wait for transaction to check if it exists and is confirmed
+	// Try to wait for transaction to check if it exists and get details
 	txnResult, err := ac.client.WaitForTransaction(txHash)
 	if err != nil {
-		// Transaction might be pending or failed
-		return &TransactionInfo{
-			Confirmed: false,
-			Success:   false,
-			Amount:    0,
-			Error:     err.Error(),
-		}, nil
+		// Transaction does not exist or failed to retrieve
+		log.Printf("Transaction not found or failed to retrieve: %v", err)
+		return nil, fmt.Errorf("transaction not found")
 	}
 
-	// Transaction is confirmed, extract amount from events
-	amount := uint64(0)
-	success := txnResult.Success
+	// Transaction exists and is confirmed
+	log.Printf("Transaction found - Success: %t, Gas used: %d", txnResult.Success, txnResult.GasUsed)
 
-	// Parse transaction events to extract the actual amount
-	log.Printf("Transaction has %d events", len(txnResult.Events))
+	// Extract amount from transaction events
+	amount := uint64(0)
 	if txnResult.Events != nil {
+		log.Printf("Transaction has %d events", len(txnResult.Events))
 		for i, event := range txnResult.Events {
 			log.Printf("Event %d: Type=%s, Data=%+v", i, event.Type, event.Data)
 			
-			// Prioritize fungible_asset events for amount extraction
-			if event.Type == "0x1::fungible_asset::Withdraw" || event.Type == "0x1::fungible_asset::Deposit" {
+			// Look for coin transfer events to extract amount
+			if event.Type == "0x1::coin::WithdrawEvent" || 
+			   event.Type == "0x1::coin::DepositEvent" ||
+			   event.Type == "0x1::aptos_coin::WithdrawEvent" ||
+			   event.Type == "0x1::aptos_coin::DepositEvent" ||
+			   event.Type == "0x1::fungible_asset::Withdraw" || 
+			   event.Type == "0x1::fungible_asset::Deposit" {
+				
 				if amountStr, exists := event.Data["amount"]; exists {
-					log.Printf("Found amount in fungible_asset event: %v (type: %T)", amountStr, amountStr)
+					log.Printf("Found amount in event: %v (type: %T)", amountStr, amountStr)
 					if amountFloat, ok := amountStr.(float64); ok {
 						amount = uint64(amountFloat)
-						log.Printf("Parsed fungible_asset amount as float64: %d", amount)
-						break // Use the first fungible_asset amount found
+						log.Printf("Parsed amount as float64: %d octas", amount)
+						break
 					} else if amountString, ok := amountStr.(string); ok {
 						if parsedAmount, parseErr := strconv.ParseUint(amountString, 10, 64); parseErr == nil {
 							amount = parsedAmount
-							log.Printf("Parsed fungible_asset amount as string: %d", amount)
-							break // Use the first fungible_asset amount found
-						}
-					}
-				}
-			}
-		}
-		
-		// If no fungible_asset amount found, try other event types
-		if amount == 0 {
-			for i, event := range txnResult.Events {
-				log.Printf("Fallback check Event %d: Type=%s", i, event.Type)
-				
-				// Look for other coin transfer events
-				if event.Type == "0x1::coin::WithdrawEvent" || 
-				   event.Type == "0x1::coin::DepositEvent" ||
-				   event.Type == "0x1::aptos_coin::WithdrawEvent" ||
-				   event.Type == "0x1::aptos_coin::DepositEvent" ||
-				   strings.Contains(event.Type, "PaymentCompleted") {
-					
-					// Try to extract amount from event data
-					if amountStr, exists := event.Data["amount"]; exists {
-						log.Printf("Found amount in fallback event: %v (type: %T)", amountStr, amountStr)
-						if amountFloat, ok := amountStr.(float64); ok {
-							amount = uint64(amountFloat)
-							log.Printf("Parsed fallback amount as float64: %d", amount)
+							log.Printf("Parsed amount as string: %d octas", amount)
 							break
-						} else if amountString, ok := amountStr.(string); ok {
-							if parsedAmount, parseErr := strconv.ParseUint(amountString, 10, 64); parseErr == nil {
-								amount = parsedAmount
-								log.Printf("Parsed fallback amount as string: %d", amount)
-								break
-							}
 						}
 					}
 				}
@@ -500,7 +470,7 @@ func (ac *AptosClient) GetTransactionDetails(txHash string) (*TransactionInfo, e
 
 	return &TransactionInfo{
 		Confirmed: true,
-		Success:   success,
+		Success:   txnResult.Success,
 		Amount:    amount,
 		Error:     "",
 	}, nil

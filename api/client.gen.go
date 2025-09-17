@@ -158,7 +158,7 @@ func NewHealthCheckRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/health")
+	operationPath := fmt.Sprintf("/api")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -308,7 +308,7 @@ type ClientWithResponsesInterface interface {
 type HealthCheckResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *HealthResponse
+	JSON200      *ApiResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -330,10 +330,8 @@ func (r HealthCheckResponse) StatusCode() int {
 type CreatePaymentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *PaymentSuccessResponse
-	JSON400      *struct {
-		union json.RawMessage
-	}
+	JSON200      *ApiResponse
+	JSON400      *ApiResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -355,10 +353,8 @@ func (r CreatePaymentResponse) StatusCode() int {
 type GetTransactionStatusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		union json.RawMessage
-	}
-	JSON404 *TransactionNotFoundError
+	JSON200      *ApiResponse
+	JSON404      *ApiResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -427,7 +423,7 @@ func ParseHealthCheckResponse(rsp *http.Response) (*HealthCheckResponse, error) 
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest HealthResponse
+		var dest ApiResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -453,16 +449,14 @@ func ParseCreatePaymentResponse(rsp *http.Response) (*CreatePaymentResponse, err
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest PaymentSuccessResponse
+		var dest ApiResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest struct {
-			union json.RawMessage
-		}
+		var dest ApiResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -488,16 +482,14 @@ func ParseGetTransactionStatusResponse(rsp *http.Response) (*GetTransactionStatu
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			union json.RawMessage
-		}
+		var dest ApiResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest TransactionNotFoundError
+		var dest ApiResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
