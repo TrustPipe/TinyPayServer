@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"tinypay-server/utils"
 
 	"tinypay-server/client"
@@ -149,10 +148,10 @@ func (s *APIServer) GetTransactionStatus(c *gin.Context, transactionHash string)
 
 	if txInfo.Success {
 		// Convert amount from octas to APT (1 APT = 100,000,000 octas)
-		amountInAPT := float64(txInfo.Amount) / 100000000.0
+		// amountInAPT := float64(txInfo.Amount) / 100000000.0
 		data := map[string]interface{}{
 			"status":          "confirmed",
-			"received_amount": strconv.FormatFloat(amountInAPT, 'f', 8, 64),
+			"received_amount": txInfo.Amount,
 			"currency":        "APT",
 		}
 		response := CreateApiResponseWithMap(CodeTransactionConfirmed, data)
