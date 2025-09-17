@@ -43,7 +43,7 @@ info:
 servers:
   - url: http://localhost:9090
     description: Development server
-  - url: https://api.tinypay.predictplay.xyz
+  - url: https://api-tinypay.predictplay.xyz
     description: Production server
 
 paths:
