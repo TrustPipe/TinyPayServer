@@ -107,7 +107,55 @@
 }
 ```
 
+---
+
+### 3. 查询用户限制
+
+**GET** `/api/users/{user_address}/limits`
+
+根据用户地址查询用户的支付限制信息，包括支付限额、尾部更新次数等。
+
+#### 路径参数
+
+- `user_address`: 用户地址 hex格式
+
+#### 响应参数
+
+**查询成功 (200)**
+```json
+{
+  "code": 1000,
+  "data": {
+    "user_limits": {
+      "payment_limit": number,      // 支付限额
+      "tail_update_count": number,  // 尾部更新次数
+      "max_tail_updates": number    // 最大尾部更新次数
+    }
+  }
+}
+```
+
+**用户地址无效 (400)**
+```json
+{
+  "code": 4000,
+  "data": null,
+  "message": "Invalid user address format"
+}
+```
+
+**查询失败 (500)**
+```json
+{
+  "code": 5000,
+  "data": null,
+  "message": "Failed to get user limits: [具体错误信息]"
+}
+```
+
 ## 使用流程
+
+### 支付流程
 
 1. 前端调用 `POST /api/payments` 创建支付交易
 2. 服务器检查字段完整性
@@ -115,3 +163,10 @@
 4. 模拟成功则返回交易哈希并提交到区块链，模拟失败则返回错误信息
 5. 前端收到交易哈希后，使用 `GET /api/payments/{transaction_hash}` 轮询查询状态
 6. 等待状态变为 `confirmed` 或 `failed`
+
+### 用户限制查询流程
+
+1. 前端调用 `GET /api/users/{user_address}/limits` 查询用户限制信息
+2. 服务器验证用户地址格式
+3. 调用区块链合约的view函数获取用户限制数据
+4. 返回包含支付限额、尾部更新次数等信息的响应

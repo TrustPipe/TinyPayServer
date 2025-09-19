@@ -22,6 +22,9 @@ type ServerInterface interface {
 	// 查询交易状态
 	// (GET /api/payments/{transaction_hash})
 	GetTransactionStatus(c *gin.Context, transactionHash string)
+	// 查询用户限制
+	// (GET /api/users/{user_address}/limits)
+	GetUserLimits(c *gin.Context, userAddress string)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -83,6 +86,30 @@ func (siw *ServerInterfaceWrapper) GetTransactionStatus(c *gin.Context) {
 	siw.Handler.GetTransactionStatus(c, transactionHash)
 }
 
+// GetUserLimits operation middleware
+func (siw *ServerInterfaceWrapper) GetUserLimits(c *gin.Context) {
+
+	var err error
+
+	// ------------- Path parameter "user_address" -------------
+	var userAddress string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "user_address", c.Param("user_address"), &userAddress, runtime.BindStyledParameterOptions{Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter user_address: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		middleware(c)
+		if c.IsAborted() {
+			return
+		}
+	}
+
+	siw.Handler.GetUserLimits(c, userAddress)
+}
+
 // GinServerOptions provides options for the Gin server.
 type GinServerOptions struct {
 	BaseURL      string
@@ -113,4 +140,5 @@ func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options
 	router.GET(options.BaseURL+"/api", wrapper.HealthCheck)
 	router.POST(options.BaseURL+"/api/payments", wrapper.CreatePayment)
 	router.GET(options.BaseURL+"/api/payments/:transaction_hash", wrapper.GetTransactionStatus)
+	router.GET(options.BaseURL+"/api/users/:user_address/limits", wrapper.GetUserLimits)
 }

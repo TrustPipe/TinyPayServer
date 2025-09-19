@@ -99,6 +99,9 @@ type ClientInterface interface {
 
 	// GetTransactionStatus request
 	GetTransactionStatus(ctx context.Context, transactionHash string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetUserLimits request
+	GetUserLimits(ctx context.Context, userAddress string, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) HealthCheck(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -139,6 +142,18 @@ func (c *Client) CreatePayment(ctx context.Context, body CreatePaymentJSONReques
 
 func (c *Client) GetTransactionStatus(ctx context.Context, transactionHash string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetTransactionStatusRequest(c.Server, transactionHash)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetUserLimits(ctx context.Context, userAddress string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetUserLimitsRequest(c.Server, userAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -250,6 +265,40 @@ func NewGetTransactionStatusRequest(server string, transactionHash string) (*htt
 	return req, nil
 }
 
+// NewGetUserLimitsRequest generates requests for GetUserLimits
+func NewGetUserLimitsRequest(server string, userAddress string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "user_address", runtime.ParamLocationPath, userAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/users/%s/limits", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -303,6 +352,9 @@ type ClientWithResponsesInterface interface {
 
 	// GetTransactionStatusWithResponse request
 	GetTransactionStatusWithResponse(ctx context.Context, transactionHash string, reqEditors ...RequestEditorFn) (*GetTransactionStatusResponse, error)
+
+	// GetUserLimitsWithResponse request
+	GetUserLimitsWithResponse(ctx context.Context, userAddress string, reqEditors ...RequestEditorFn) (*GetUserLimitsResponse, error)
 }
 
 type HealthCheckResponse struct {
@@ -373,6 +425,29 @@ func (r GetTransactionStatusResponse) StatusCode() int {
 	return 0
 }
 
+type GetUserLimitsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ApiResponse
+	JSON400      *ApiResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetUserLimitsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetUserLimitsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // HealthCheckWithResponse request returning *HealthCheckResponse
 func (c *ClientWithResponses) HealthCheckWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HealthCheckResponse, error) {
 	rsp, err := c.HealthCheck(ctx, reqEditors...)
@@ -406,6 +481,15 @@ func (c *ClientWithResponses) GetTransactionStatusWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseGetTransactionStatusResponse(rsp)
+}
+
+// GetUserLimitsWithResponse request returning *GetUserLimitsResponse
+func (c *ClientWithResponses) GetUserLimitsWithResponse(ctx context.Context, userAddress string, reqEditors ...RequestEditorFn) (*GetUserLimitsResponse, error) {
+	rsp, err := c.GetUserLimits(ctx, userAddress, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetUserLimitsResponse(rsp)
 }
 
 // ParseHealthCheckResponse parses an HTTP response from a HealthCheckWithResponse call
@@ -494,6 +578,39 @@ func ParseGetTransactionStatusResponse(rsp *http.Response) (*GetTransactionStatu
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetUserLimitsResponse parses an HTTP response from a GetUserLimitsWithResponse call
+func ParseGetUserLimitsResponse(rsp *http.Response) (*GetUserLimitsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetUserLimitsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ApiResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ApiResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	}
 

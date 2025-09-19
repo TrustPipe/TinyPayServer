@@ -176,6 +176,59 @@ paths:
                     code: 2005
                     data: null
 
+  /api/users/{user_address}/limits:
+    get:
+      summary: 查询用户限制
+      description: 根据用户地址查询用户的支付限制、尾部更新次数和最大尾部更新次数。
+      operationId: getUserLimits
+      tags:
+        - users
+      parameters:
+        - name: user_address
+          in: path
+          required: true
+          description: 用户地址
+          schema:
+            type: string
+            pattern: '^0x[a-fA-F0-9]{1,64}$'
+            example: "0x1234567890abcdef1234567890abcdef12345678"
+      responses:
+        '200':
+          description: 用户限制查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              examples:
+                success:
+                  summary: 查询成功
+                  value:
+                    code: 1004
+                    data:
+                      payment_limit: 1000000
+                      tail_update_count: 5
+                      max_tail_updates: 10
+                not_found:
+                  summary: 用户不存在
+                  value:
+                    code: 1004
+                    data:
+                      payment_limit: 0
+                      tail_update_count: 0
+                      max_tail_updates: 0
+        '400':
+          description: 请求错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              examples:
+                invalid_address:
+                  summary: 无效地址格式
+                  value:
+                    code: 2006
+                    data: null
+
 components:
   schemas:
     ApiResponse:
@@ -230,5 +283,7 @@ components:
 tags:
   - name: payments
     description: 支付相关接口
+  - name: users
+    description: 用户相关接口
   - name: system
     description: 系统相关接口

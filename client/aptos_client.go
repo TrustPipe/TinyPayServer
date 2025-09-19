@@ -719,3 +719,80 @@ func parseAccountAddress(addr string) aptos.AccountAddress {
 	}
 	return address
 }
+
+// UserLimits represents the user limits returned by the contract
+type UserLimits struct {
+	PaymentLimit     uint64 `json:"payment_limit"`
+	TailUpdateCount  uint64 `json:"tail_update_count"`
+	MaxTailUpdates   uint64 `json:"max_tail_updates"`
+}
+
+// GetUserLimits calls the get_user_limits view function from the contract
+func (ac *AptosClient) GetUserLimits(userAddress string) (*UserLimits, error) {
+	log.Printf("Getting user limits for address: %s", userAddress)
+
+	// Parse the user address
+	userAddr := parseAccountAddress(userAddress)
+
+	// Build the view function request
+	viewRequest := &aptos.ViewPayload{
+		Module: aptos.ModuleId{
+			Address: parseAccountAddress(ac.config.ContractAddress),
+			Name:    "tinypay",
+		},
+		Function: "get_user_limits",
+		ArgTypes: []aptos.TypeTag{},
+		Args: [][]byte{
+			userAddr[:], // Convert AccountAddress to bytes
+		},
+	}
+
+	// Call the view function
+	result, err := ac.client.View(viewRequest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call get_user_limits view function: %w", err)
+	}
+
+	// Parse the result
+	if len(result) != 3 {
+		return nil, fmt.Errorf("unexpected result length: expected 3, got %d", len(result))
+	}
+
+	// Convert the results to uint64
+	paymentLimit, err := parseU64FromInterface(result[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse payment_limit: %w", err)
+	}
+
+	tailUpdateCount, err := parseU64FromInterface(result[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse tail_update_count: %w", err)
+	}
+
+	maxTailUpdates, err := parseU64FromInterface(result[2])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse max_tail_updates: %w", err)
+	}
+
+	return &UserLimits{
+		PaymentLimit:    paymentLimit,
+		TailUpdateCount: tailUpdateCount,
+		MaxTailUpdates:  maxTailUpdates,
+	}, nil
+}
+
+// parseU64FromInterface parses a uint64 value from an interface{}
+func parseU64FromInterface(value interface{}) (uint64, error) {
+	switch v := value.(type) {
+	case string:
+		return strconv.ParseUint(v, 10, 64)
+	case float64:
+		return uint64(v), nil
+	case int64:
+		return uint64(v), nil
+	case uint64:
+		return v, nil
+	default:
+		return 0, fmt.Errorf("unsupported type: %T", value)
+	}
+}

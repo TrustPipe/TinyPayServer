@@ -226,3 +226,31 @@ func (s *APIServer) GetTransactionStatus(c *gin.Context, transactionHash string)
 		c.JSON(http.StatusOK, response)
 	}
 }
+
+// GetUserLimits implements the GET /api/users/{user_address}/limits endpoint
+func (s *APIServer) GetUserLimits(c *gin.Context, userAddress string) {
+	log.Printf("Getting user limits for address: %s", userAddress)
+
+	// Validate user address format
+	if userAddress == "" {
+		response := CreateApiResponseWithNullData(CodeInvalidOpt)
+		c.JSON(http.StatusBadRequest, response)
+		return
+	}
+
+	// Call the contract view function
+	userLimits, err := s.aptosClient.GetUserLimits(userAddress)
+	if err != nil {
+		log.Printf("Failed to get user limits: %v", err)
+		response := CreateApiResponseWithNullData(CodeInvalidOpt)
+		c.JSON(http.StatusBadRequest, response)
+		return
+	}
+
+	// Return successful response
+	data := map[string]interface{}{
+		"user_limits": userLimits,
+	}
+	response := CreateApiResponseWithMap(CodeServerHealthy, data)
+	c.JSON(http.StatusOK, response)
+}
