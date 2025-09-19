@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 
 	"tinypay-server/config"
+	"tinypay-server/utils"
 
 	"github.com/aptos-labs/aptos-go-sdk"
 	"github.com/aptos-labs/aptos-go-sdk/bcs"
@@ -315,10 +317,15 @@ func (ac *AptosClient) GetMerchantAddress() string {
 
 // GetPaymasterAddress returns the paymaster account address (if available)
 func (ac *AptosClient) GetPaymasterAddress() string {
-	if ac.paymasterAccount != nil {
-		return ac.paymasterAccount.Address.String()
+	if ac.paymasterAccount == nil {
+		return ""
 	}
-	return ""
+	return ac.paymasterAccount.Address.String()
+}
+
+// GetConfig 返回客户端的配置
+func (ac *AptosClient) GetConfig() *config.Config {
+	return ac.config
 }
 
 // SimulatePayment simulates a payment transaction without submitting it
@@ -513,7 +520,24 @@ type TransactionInfo struct {
 	Confirmed bool
 	Success   bool
 	Amount    uint64
+	CoinType  string // "APT" or "USDC"
 	Error     string
+}
+
+// parseCoinType converts a coin_type string to a human-readable currency type
+func parseCoinType(coinType string) string {
+	if coinType == "0x1::aptos_coin::AptosCoin" {
+		return "APT"
+	}
+	// Check for USDC patterns (both test and mainnet)
+	if coinType == "0x1::test_usdc::TestUSDC" ||
+		coinType == "0xaadbf0681ef3dc9decd123340db16954f85319853533ed4ace6ec5d11aaad190::test_usdc::TestUSDC" ||
+		// Add other USDC patterns as needed
+		coinType == "0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC" {
+		return "USDC"
+	}
+	// Default to the original coin type if not recognized
+	return coinType
 }
 
 // GetTransactionStatus gets the status of a transaction by hash
@@ -546,14 +570,44 @@ func (ac *AptosClient) GetTransactionDetails(txHash string) (*TransactionInfo, e
 	// Transaction exists and is confirmed
 	log.Printf("Transaction found - Success: %t, Gas used: %d", txnResult.Success, txnResult.GasUsed)
 
-	// Extract amount from transaction events
+	// Extract amount and coin type from transaction events
 	amount := uint64(0)
+	coinType := "APT" // 默认为 APT
+	
 	if txnResult.Events != nil {
 		log.Printf("Transaction has %d events", len(txnResult.Events))
 		for i, event := range txnResult.Events {
 			log.Printf("Event %d: Type=%s, Data=%+v", i, event.Type, event.Data)
 
-			// Look for coin transfer events to extract amount
+			// 优先查找 tinypay::PaymentCompleted 事件
+			if strings.Contains(event.Type, "::tinypay::PaymentCompleted") {
+				log.Printf("Found PaymentCompleted event")
+				
+				// 提取 amount
+				if amountStr, exists := event.Data["amount"]; exists {
+					log.Printf("Found amount in PaymentCompleted event: %v (type: %T)", amountStr, amountStr)
+					if amountString, ok := amountStr.(string); ok {
+						if parsedAmount, parseErr := strconv.ParseUint(amountString, 10, 64); parseErr == nil {
+							amount = parsedAmount
+							log.Printf("Parsed amount from PaymentCompleted: %d", amount)
+						}
+					}
+				}
+				
+				// 提取 coin_type 并转换为货币类型
+				if coinTypeStr, exists := event.Data["coin_type"]; exists {
+					log.Printf("Found coin_type in PaymentCompleted event: %v", coinTypeStr)
+					if coinTypeString, ok := coinTypeStr.(string); ok {
+						coinType = utils.GetCurrencyFromCoinType(ac.config, coinTypeString)
+						log.Printf("Mapped coin_type %s to currency: %s", coinTypeString, coinType)
+					}
+				}
+				
+				// 找到 PaymentCompleted 事件后就退出循环
+				break
+			}
+
+			// 如果没有找到 PaymentCompleted 事件，回退到原来的逻辑
 			if event.Type == "0x1::coin::WithdrawEvent" ||
 				event.Type == "0x1::coin::DepositEvent" ||
 				event.Type == "0x1::aptos_coin::WithdrawEvent" ||
@@ -585,6 +639,7 @@ func (ac *AptosClient) GetTransactionDetails(txHash string) (*TransactionInfo, e
 		Confirmed: true,
 		Success:   txnResult.Success,
 		Amount:    amount,
+		CoinType:  coinType,
 		Error:     "",
 	}, nil
 }

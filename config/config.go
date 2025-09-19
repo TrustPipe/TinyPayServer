@@ -16,6 +16,7 @@ type Config struct {
 
 	// Contract Configuration
 	ContractAddress string
+	USDCContractAddress string
 
 	// Server Configuration
 	Port string
@@ -40,6 +41,7 @@ func LoadConfig() *Config {
 		AptosNodeURL:        getEnv("APTOS_NODE_URL", "https://fullnode.devnet.aptoslabs.com/v1"),
 		AptosFaucetURL:      getEnv("APTOS_FAUCET_URL", "https://faucet.devnet.aptoslabs.com"),
 		ContractAddress:     getEnv("CONTRACT_ADDRESS", ""),
+		USDCContractAddress: getEnv("USDC_CONTRACT_ADDRESS", "0xaadbf0681ef3dc9decd123340db16954f85319853533ed4ace6ec5d11aaad190::test_usdc::TestUSDC"),
 		Port:                getEnv("PORT", "9090"),
 		MerchantPrivateKey:  getEnv("MERCHANT_PRIVATE_KEY", ""),
 		PaymasterPrivateKey: getEnv("PAYMASTER_PRIVATE_KEY", ""),
