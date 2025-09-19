@@ -35,6 +35,7 @@ func (s *APIServer) HealthCheck(c *gin.Context) {
 
 // CreatePayment implements the payment creation endpoint
 func (s *APIServer) CreatePayment(c *gin.Context) {
+	// todo: 应该针对 payer 加锁
 	var req PaymentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		// Invalid request body format
@@ -67,6 +68,23 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 		return
 	}
 
+	// Handle currency type - default to APT if not specified
+	currency := "APT"
+	if req.Currency != nil {
+		currency = string(*req.Currency)
+	}
+
+	// Get coin type from currency mapping
+	coinType, err := utils.GetCoinType(currency)
+	if err != nil {
+		log.Printf("Unsupported currency: %s", currency)
+		response := CreateApiResponseWithNullData(CodeInvalidOpt)
+		c.JSON(http.StatusBadRequest, response)
+		return
+	}
+
+	log.Printf("Processing payment with currency: %s, coin type: %s", currency, coinType)
+
 	// Convert hex strings to bytes
 	optBytes := utils.HexToASCIIBytes(req.Opt)
 	log.Printf("\nAptos CLI format for opt:\n")
@@ -89,21 +107,20 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 		return
 	}
 
-	// Simulate the transaction first
-	_, _, err := s.aptosClient.SimulatePayment(optBytes, req.PayerAddr, req.PayeeAddr, amount)
-	if err != nil {
-		// todo:
-		// Randomly return one of the validation error codes (2000-2003)
-		errorCodes := []int{CodeAmountMustBePositive, CodeAmountExceedsLimit, CodeInsufficientBalance, CodeInvalidOpt}
-		randomCode := errorCodes[len(err.Error())%len(errorCodes)]
-		response := CreateApiResponseWithNullData(randomCode)
-		c.JSON(http.StatusBadRequest, response)
-		return
-	}
+	// Compute payment hash for the transaction
+	// note: 暂时不用商家自行处理 precommit
+	//commitHash, err := s.aptosClient.ComputePaymentHash(req.PayerAddr, req.PayeeAddr, amount, optBytes)
+	//if err != nil {
+	//	log.Printf("Failed to compute payment hash: %v", err)
+	//	response := CreateApiResponseWithNullData(CodeInvalidOpt)
+	//	c.JSON(http.StatusBadRequest, response)
+	//	return
+	//}
 
-	// Submit the transaction
-	txHash, err := s.aptosClient.SubmitPayment(optBytes, req.PayerAddr, req.PayeeAddr, amount)
+	// Submit the transaction with coin type support
+	txHash, err := s.aptosClient.CompletePaymentWithCoinType(optBytes, req.PayerAddr, req.PayeeAddr, amount, []byte(""), coinType)
 	if err != nil {
+		log.Printf("Failed to complete payment: %v", err)
 		// todo:
 		// Randomly return one of the validation error codes (2000-2003)
 		errorCodes := []int{CodeAmountMustBePositive, CodeAmountExceedsLimit, CodeInsufficientBalance, CodeInvalidOpt}
@@ -116,6 +133,8 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 	data := map[string]interface{}{
 		"status":           "submitted",
 		"transaction_hash": txHash,
+		"currency":         currency,
+		"coin_type":        coinType,
 	}
 	response := CreateApiResponseWithMap(CodeTransactionCreated, data)
 	c.JSON(http.StatusOK, response)

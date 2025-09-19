@@ -5,7 +5,8 @@ package api
 
 // Defines values for PaymentRequestCurrency.
 const (
-	APT PaymentRequestCurrency = "APT"
+	APT  PaymentRequestCurrency = "APT"
+	USDC PaymentRequestCurrency = "USDC"
 )
 
 // ApiResponse defines model for ApiResponse.

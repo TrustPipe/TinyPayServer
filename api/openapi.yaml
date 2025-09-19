@@ -224,7 +224,7 @@ components:
           type: string
           description: 货币种类
           default: "APT"
-          enum: ["APT"]
+          enum: ["APT", "USDC"]
           example: "APT"
 
 tags:
