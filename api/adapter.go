@@ -41,12 +41,12 @@ func (s *APIServer) getPayerLock(payerAddr string) *sync.Mutex {
 	// If lock doesn't exist, acquire write lock and create it
 	s.locksMutex.Lock()
 	defer s.locksMutex.Unlock()
-	
+
 	// Double-check in case another goroutine created it while we were waiting
 	if lock, exists := s.payerLocks[payerAddr]; exists {
 		return lock
 	}
-	
+
 	// Create new lock for this payer
 	lock := &sync.Mutex{}
 	s.payerLocks[payerAddr] = lock
@@ -213,7 +213,7 @@ func (s *APIServer) GetTransactionStatus(c *gin.Context, transactionHash string)
 		data := map[string]interface{}{
 			"status":          "confirmed",
 			"received_amount": txInfo.Amount,
-			"currency":        "APT",
+			"currency":        txInfo.CoinType,
 		}
 		response := CreateApiResponseWithMap(CodeTransactionConfirmed, data)
 		c.JSON(http.StatusOK, response)

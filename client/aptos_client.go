@@ -232,11 +232,16 @@ func (ac *AptosClient) CompletePaymentWithCoinType(opt []byte, payer, recipient 
 	simulationResult, err := ac.client.SimulateTransaction(rawTxn, caller)
 	if err != nil {
 		log.Printf("Warning: failed to simulate transaction: %v", err)
+		return "", fmt.Errorf("failed to simulate transaction: %w", err)
 	} else {
 		log.Printf("Simulation - Gas used: %d, Gas unit price: %d, Total fee: %d",
 			simulationResult[0].GasUsed,
 			simulationResult[0].GasUnitPrice,
 			simulationResult[0].GasUsed*simulationResult[0].GasUnitPrice)
+	}
+
+	if len(simulationResult) == 1 && (!simulationResult[0].Success) {
+		return "", fmt.Errorf("simulationResult failed %s", simulationResult[0].VmStatus)
 	}
 
 	// Sign transaction
@@ -573,7 +578,7 @@ func (ac *AptosClient) GetTransactionDetails(txHash string) (*TransactionInfo, e
 	// Extract amount and coin type from transaction events
 	amount := uint64(0)
 	coinType := "APT" // 默认为 APT
-	
+
 	if txnResult.Events != nil {
 		log.Printf("Transaction has %d events", len(txnResult.Events))
 		for i, event := range txnResult.Events {
@@ -582,7 +587,7 @@ func (ac *AptosClient) GetTransactionDetails(txHash string) (*TransactionInfo, e
 			// 优先查找 tinypay::PaymentCompleted 事件
 			if strings.Contains(event.Type, "::tinypay::PaymentCompleted") {
 				log.Printf("Found PaymentCompleted event")
-				
+
 				// 提取 amount
 				if amountStr, exists := event.Data["amount"]; exists {
 					log.Printf("Found amount in PaymentCompleted event: %v (type: %T)", amountStr, amountStr)
@@ -593,7 +598,7 @@ func (ac *AptosClient) GetTransactionDetails(txHash string) (*TransactionInfo, e
 						}
 					}
 				}
-				
+
 				// 提取 coin_type 并转换为货币类型
 				if coinTypeStr, exists := event.Data["coin_type"]; exists {
 					log.Printf("Found coin_type in PaymentCompleted event: %v", coinTypeStr)
@@ -602,7 +607,42 @@ func (ac *AptosClient) GetTransactionDetails(txHash string) (*TransactionInfo, e
 						log.Printf("Mapped coin_type %s to currency: %s", coinTypeString, coinType)
 					}
 				}
-				
+
+				// 找到 PaymentCompleted 事件后就退出循环
+				break
+			}
+		}
+
+		for i, event := range txnResult.Events {
+			if amount > 0 {
+				break
+			}
+			log.Printf("Event %d: Type=%s, Data=%+v", i, event.Type, event.Data)
+
+			// 优先查找 tinypay::PaymentCompleted 事件
+			if strings.Contains(event.Type, "::tinypay::PaymentCompleted") {
+				log.Printf("Found PaymentCompleted event")
+
+				// 提取 amount
+				if amountStr, exists := event.Data["amount"]; exists {
+					log.Printf("Found amount in PaymentCompleted event: %v (type: %T)", amountStr, amountStr)
+					if amountString, ok := amountStr.(string); ok {
+						if parsedAmount, parseErr := strconv.ParseUint(amountString, 10, 64); parseErr == nil {
+							amount = parsedAmount
+							log.Printf("Parsed amount from PaymentCompleted: %d", amount)
+						}
+					}
+				}
+
+				// 提取 coin_type 并转换为货币类型
+				if coinTypeStr, exists := event.Data["coin_type"]; exists {
+					log.Printf("Found coin_type in PaymentCompleted event: %v", coinTypeStr)
+					if coinTypeString, ok := coinTypeStr.(string); ok {
+						coinType = utils.GetCurrencyFromCoinType(ac.config, coinTypeString)
+						log.Printf("Mapped coin_type %s to currency: %s", coinTypeString, coinType)
+					}
+				}
+
 				// 找到 PaymentCompleted 事件后就退出循环
 				break
 			}
