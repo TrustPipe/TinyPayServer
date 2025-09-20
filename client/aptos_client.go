@@ -146,9 +146,10 @@ func (ac *AptosClient) MerchantPrecommit(commitHash []byte) (string, error) {
 	return submitResult.Hash, nil
 }
 
-// CompletePayment completes a payment transaction with APT (legacy method)
+// CompletePayment completes a payment transaction with APT using FA system
 func (ac *AptosClient) CompletePayment(opt []byte, payer, recipient string, amount uint64, commitHash []byte) (string, error) {
-	return ac.CompletePaymentWithCoinType(opt, payer, recipient, amount, commitHash, "0x1::aptos_coin::AptosCoin")
+	// Default to APT metadata address
+	return ac.CompletePaymentWithFA(opt, payer, recipient, amount, commitHash, "APT")
 }
 
 // CompletePaymentWithCoinType completes a payment transaction with specified coin type
@@ -266,11 +267,146 @@ func (ac *AptosClient) CompletePaymentWithCoinType(opt []byte, payer, recipient 
 	return submitResult.Hash, nil
 }
 
-// Helper function to compute payment parameters hash
-func (ac *AptosClient) ComputePaymentHash(payer, recipient string, amount uint64, opt []byte) ([]byte, error) {
+// CompletePaymentWithFA completes a payment transaction using FA (Fungible Asset) system
+func (ac *AptosClient) CompletePaymentWithFA(opt []byte, payer, recipient string, amount uint64, commitHash []byte, currency string) (string, error) {
+	log.Printf("Executing complete_payment with FA - Payer: %s, Recipient: %s, Amount: %d, Currency: %s", payer, recipient, amount, currency)
+
+	// Get metadata address for the currency
+	metadataAddr, err := utils.GetMetadataAddress(ac.config, currency)
+	if err != nil {
+		return "", fmt.Errorf("failed to get metadata address: %w", err)
+	}
+
 	// Parse addresses
 	payerAddr := parseAccountAddress(payer)
 	recipientAddr := parseAccountAddress(recipient)
+	metadataAddress := parseAccountAddress(metadataAddr)
+
+	// Serialize parameters
+	optBytes, err := bcs.SerializeBytes(opt)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize opt: %w", err)
+	}
+
+	payerBytes, err := bcs.Serialize(&payerAddr)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize payer address: %w", err)
+	}
+
+	recipientBytes, err := bcs.Serialize(&recipientAddr)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize recipient address: %w", err)
+	}
+
+	amountBytes, err := bcs.SerializeU64(amount)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize amount: %w", err)
+	}
+
+	metadataBytes, err := bcs.Serialize(&metadataAddress)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize metadata address: %w", err)
+	}
+
+	commitHashBytes, err := bcs.SerializeBytes(commitHash)
+	if err != nil {
+		return "", fmt.Errorf("failed to serialize commit hash: %w", err)
+	}
+
+	// Choose the caller (merchant or paymaster)
+	var caller *aptos.Account
+	if ac.paymasterAccount != nil {
+		caller = ac.paymasterAccount
+		log.Println("Using paymaster account as caller")
+	} else {
+		caller = ac.merchantAccount
+		log.Println("Using merchant account as caller")
+	}
+
+	// Build transaction for FA system (no type arguments needed)
+	rawTxn, err := ac.client.BuildTransaction(
+		caller.AccountAddress(),
+		aptos.TransactionPayload{
+			Payload: &aptos.EntryFunction{
+				Module: aptos.ModuleId{
+					Address: parseAccountAddress(ac.config.ContractAddress),
+					Name:    "tinypay",
+				},
+				Function: "complete_payment",
+				ArgTypes: []aptos.TypeTag{}, // No type arguments for FA system
+				Args: [][]byte{
+					optBytes,
+					payerBytes,
+					recipientBytes,
+					amountBytes,
+					metadataBytes,
+					commitHashBytes,
+				},
+			},
+		},
+		aptos.MaxGasAmount(ac.config.MaxGasAmount),
+		aptos.GasUnitPrice(ac.config.GasUnitPrice),
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to build transaction: %w", err)
+	}
+
+	// Simulate transaction (optional but recommended)
+	simulationResult, err := ac.client.SimulateTransaction(rawTxn, caller)
+	if err != nil {
+		log.Printf("Warning: failed to simulate transaction: %v", err)
+		return "", fmt.Errorf("failed to simulate transaction: %w", err)
+	} else {
+		log.Printf("Simulation - Gas used: %d, Gas unit price: %d, Total fee: %d",
+			simulationResult[0].GasUsed,
+			simulationResult[0].GasUnitPrice,
+			simulationResult[0].GasUsed*simulationResult[0].GasUnitPrice)
+	}
+
+	if len(simulationResult) == 1 && (!simulationResult[0].Success) {
+		return "", fmt.Errorf("simulationResult failed %s", simulationResult[0].VmStatus)
+	}
+
+	// Sign transaction
+	signedTxn, err := rawTxn.SignedTransaction(caller)
+	if err != nil {
+		return "", fmt.Errorf("failed to sign transaction: %w", err)
+	}
+
+	// Submit transaction
+	submitResult, err := ac.client.SubmitTransaction(signedTxn)
+	if err != nil {
+		return "", fmt.Errorf("failed to submit transaction: %w", err)
+	}
+
+	// Wait for transaction completion
+	_, err = ac.client.WaitForTransaction(submitResult.Hash)
+	if err != nil {
+		return "", fmt.Errorf("failed to wait for transaction: %w", err)
+	}
+
+	log.Printf("FA Payment completion successful, transaction hash: %s", submitResult.Hash)
+	return submitResult.Hash, nil
+}
+
+// Helper function to compute payment parameters hash for FA system
+func (ac *AptosClient) ComputePaymentHash(payer, recipient string, amount uint64, opt []byte) ([]byte, error) {
+	// Default to APT for backward compatibility
+	return ac.ComputePaymentHashWithCurrency(payer, recipient, amount, opt, "APT")
+}
+
+// ComputePaymentHashWithCurrency computes payment hash with specific currency for FA system
+func (ac *AptosClient) ComputePaymentHashWithCurrency(payer, recipient string, amount uint64, opt []byte, currency string) ([]byte, error) {
+	// Parse addresses
+	payerAddr := parseAccountAddress(payer)
+	recipientAddr := parseAccountAddress(recipient)
+
+	// Get metadata address for the currency
+	metadataAddr, err := utils.GetMetadataAddress(ac.config, currency)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get metadata address: %w", err)
+	}
+	metadataAddress := parseAccountAddress(metadataAddr)
 
 	// Serialize parameters in the same order as the contract
 	payerBytes, err := bcs.Serialize(&payerAddr)
@@ -293,12 +429,18 @@ func (ac *AptosClient) ComputePaymentHash(payer, recipient string, amount uint64
 		return nil, fmt.Errorf("failed to serialize opt: %w", err)
 	}
 
-	// Concatenate all parameters
+	metadataBytes, err := bcs.Serialize(&metadataAddress)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize metadata address: %w", err)
+	}
+
+	// Concatenate all parameters in the order expected by the contract
 	var paramsBytes []byte
 	paramsBytes = append(paramsBytes, payerBytes...)
 	paramsBytes = append(paramsBytes, recipientBytes...)
 	paramsBytes = append(paramsBytes, amountBytes...)
 	paramsBytes = append(paramsBytes, optBytes...)
+	paramsBytes = append(paramsBytes, metadataBytes...)
 
 	// Compute SHA256 hash
 	hash := sha256.Sum256(paramsBytes)
@@ -575,9 +717,9 @@ func (ac *AptosClient) GetTransactionDetails(txHash string) (*TransactionInfo, e
 	// Transaction exists and is confirmed
 	log.Printf("Transaction found - Success: %t, Gas used: %d", txnResult.Success, txnResult.GasUsed)
 
-	// Extract amount and coin type from transaction events
+	// Extract amount and currency type from transaction events
 	amount := uint64(0)
-	coinType := "APT" // 默认为 APT
+	currency := "APT" // 默认为 APT
 
 	if txnResult.Events != nil {
 		log.Printf("Transaction has %d events", len(txnResult.Events))
@@ -599,12 +741,12 @@ func (ac *AptosClient) GetTransactionDetails(txHash string) (*TransactionInfo, e
 					}
 				}
 
-				// 提取 coin_type 并转换为货币类型
-				if coinTypeStr, exists := event.Data["coin_type"]; exists {
-					log.Printf("Found coin_type in PaymentCompleted event: %v", coinTypeStr)
-					if coinTypeString, ok := coinTypeStr.(string); ok {
-						coinType = utils.GetCurrencyFromCoinType(ac.config, coinTypeString)
-						log.Printf("Mapped coin_type %s to currency: %s", coinTypeString, coinType)
+				// 提取 asset_metadata 并转换为货币类型
+				if metadataStr, exists := event.Data["asset_metadata"]; exists {
+					log.Printf("Found asset_metadata in PaymentCompleted event: %v", metadataStr)
+					if metadataString, ok := metadataStr.(string); ok {
+						currency = utils.GetCurrencyFromMetadata(ac.config, metadataString)
+						log.Printf("Mapped asset_metadata %s to currency: %s", metadataString, currency)
 					}
 				}
 
@@ -613,39 +755,12 @@ func (ac *AptosClient) GetTransactionDetails(txHash string) (*TransactionInfo, e
 			}
 		}
 
+		// Fallback: look for other events if PaymentCompleted not found
 		for i, event := range txnResult.Events {
 			if amount > 0 {
 				break
 			}
 			log.Printf("Event %d: Type=%s, Data=%+v", i, event.Type, event.Data)
-
-			// 优先查找 tinypay::PaymentCompleted 事件
-			if strings.Contains(event.Type, "::tinypay::PaymentCompleted") {
-				log.Printf("Found PaymentCompleted event")
-
-				// 提取 amount
-				if amountStr, exists := event.Data["amount"]; exists {
-					log.Printf("Found amount in PaymentCompleted event: %v (type: %T)", amountStr, amountStr)
-					if amountString, ok := amountStr.(string); ok {
-						if parsedAmount, parseErr := strconv.ParseUint(amountString, 10, 64); parseErr == nil {
-							amount = parsedAmount
-							log.Printf("Parsed amount from PaymentCompleted: %d", amount)
-						}
-					}
-				}
-
-				// 提取 coin_type 并转换为货币类型
-				if coinTypeStr, exists := event.Data["coin_type"]; exists {
-					log.Printf("Found coin_type in PaymentCompleted event: %v", coinTypeStr)
-					if coinTypeString, ok := coinTypeStr.(string); ok {
-						coinType = utils.GetCurrencyFromCoinType(ac.config, coinTypeString)
-						log.Printf("Mapped coin_type %s to currency: %s", coinTypeString, coinType)
-					}
-				}
-
-				// 找到 PaymentCompleted 事件后就退出循环
-				break
-			}
 
 			// 如果没有找到 PaymentCompleted 事件，回退到原来的逻辑
 			if event.Type == "0x1::coin::WithdrawEvent" ||
@@ -679,7 +794,7 @@ func (ac *AptosClient) GetTransactionDetails(txHash string) (*TransactionInfo, e
 		Confirmed: true,
 		Success:   txnResult.Success,
 		Amount:    amount,
-		CoinType:  coinType,
+		CoinType:  currency,
 		Error:     "",
 	}, nil
 }
@@ -722,9 +837,9 @@ func parseAccountAddress(addr string) aptos.AccountAddress {
 
 // UserLimits represents the user limits returned by the contract
 type UserLimits struct {
-	PaymentLimit     uint64 `json:"payment_limit"`
-	TailUpdateCount  uint64 `json:"tail_update_count"`
-	MaxTailUpdates   uint64 `json:"max_tail_updates"`
+	PaymentLimit    uint64 `json:"payment_limit"`
+	TailUpdateCount uint64 `json:"tail_update_count"`
+	MaxTailUpdates  uint64 `json:"max_tail_updates"`
 }
 
 // GetUserLimits calls the get_user_limits view function from the contract

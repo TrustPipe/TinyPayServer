@@ -14,11 +14,19 @@ func HexToASCIIBytes(hexStr string) []byte {
 	return []byte(strings.TrimPrefix(hexStr, "0x"))
 }
 
-// GetCoinTypeMapping 根据配置获取币种类型映射
+// GetCoinTypeMapping 根据配置获取币种类型映射 (Legacy for coin types)
 func GetCoinTypeMapping(cfg *config.Config) map[string]string {
 	return map[string]string{
 		"APT":  "0x1::aptos_coin::AptosCoin",
 		"USDC": cfg.USDCContractAddress,
+	}
+}
+
+// GetMetadataMapping 根据配置获取币种到 FA metadata 地址的映射
+func GetMetadataMapping(cfg *config.Config) map[string]string {
+	return map[string]string{
+		"APT":  "0x1::aptos_coin::AptosCoin", // APT still uses coin type for now
+		"USDC": cfg.USDCMetadataAddress,
 	}
 }
 
@@ -27,13 +35,13 @@ func GetCoinType(cfg *config.Config, currency string) (string, error) {
 	if currency == "" {
 		currency = "APT" // 默认为APT
 	}
-	
+
 	coinTypeMapping := GetCoinTypeMapping(cfg)
 	coinType, exists := coinTypeMapping[strings.ToUpper(currency)]
 	if !exists {
 		return "", fmt.Errorf("unsupported currency: %s", currency)
 	}
-	
+
 	return coinType, nil
 }
 
@@ -47,11 +55,37 @@ func GetSupportedCurrencies(cfg *config.Config) []string {
 	return currencies
 }
 
+// GetMetadataAddress 根据币种名称获取对应的 FA metadata 地址
+func GetMetadataAddress(cfg *config.Config, currency string) (string, error) {
+	if currency == "" {
+		currency = "APT" // 默认为APT
+	}
+
+	metadataMapping := GetMetadataMapping(cfg)
+	metadataAddr, exists := metadataMapping[strings.ToUpper(currency)]
+	if !exists {
+		return "", fmt.Errorf("unsupported currency: %s", currency)
+	}
+
+	return metadataAddr, nil
+}
+
 // GetCurrencyFromCoinType 根据合约类型获取币种名称（反向映射）
 func GetCurrencyFromCoinType(cfg *config.Config, coinType string) string {
 	coinTypeMapping := GetCoinTypeMapping(cfg)
 	for currency, contractType := range coinTypeMapping {
 		if contractType == coinType {
+			return currency
+		}
+	}
+	return "UNKNOWN"
+}
+
+// GetCurrencyFromMetadata 根据 metadata 地址获取币种名称（反向映射）
+func GetCurrencyFromMetadata(cfg *config.Config, metadataAddr string) string {
+	metadataMapping := GetMetadataMapping(cfg)
+	for currency, addr := range metadataMapping {
+		if addr == metadataAddr {
 			return currency
 		}
 	}

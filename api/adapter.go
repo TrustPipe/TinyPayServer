@@ -159,8 +159,8 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 	//	return
 	//}
 
-	// Submit the transaction with coin type support
-	txHash, err := s.aptosClient.CompletePaymentWithCoinType(optBytes, req.PayerAddr, req.PayeeAddr, amount, []byte(""), coinType)
+	// Submit the transaction with FA support
+	txHash, err := s.aptosClient.CompletePaymentWithFA(optBytes, req.PayerAddr, req.PayeeAddr, amount, []byte(""), currency)
 	if err != nil {
 		log.Printf("Failed to complete payment: %v", err)
 		// todo:
