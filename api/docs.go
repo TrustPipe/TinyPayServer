@@ -15,12 +15,17 @@ func SetupSwaggerUI(router *gin.Engine) {
 	// Serve the OpenAPI spec
 	router.GET("/api/openapi.yaml", func(c *gin.Context) {
 		c.Header("Content-Type", "application/x-yaml")
-		swagger, _ := GetSwagger()
-		c.String(http.StatusOK, swagger.Info.Title) // This will be replaced with actual spec
+		c.Header("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+		c.Header("Pragma", "no-cache")
+		c.Header("Expires", "0")
+		c.String(http.StatusOK, openapiSpec)
 	})
 
 	// Serve Swagger UI
 	router.GET("/docs", func(c *gin.Context) {
+		c.Header("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+		c.Header("Pragma", "no-cache")
+		c.Header("Expires", "0")
 		html := `<!DOCTYPE html>
 <html>
 <head>
@@ -77,7 +82,10 @@ func SetupSwaggerUI(router *gin.Engine) {
 // ServeOpenAPISpec serves the OpenAPI specification
 func ServeOpenAPISpec(c *gin.Context) {
 	c.Header("Content-Type", "application/x-yaml")
-	
+	c.Header("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate")
+	c.Header("Pragma", "no-cache")
+	c.Header("Expires", "0")
+
 	// Use embedded OpenAPI spec
 	c.String(http.StatusOK, openapiSpec)
 }

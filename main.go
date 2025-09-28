@@ -6,7 +6,6 @@ import (
 	"tinypay-server/api"
 	"tinypay-server/client"
 	"tinypay-server/config"
-	"tinypay-server/handlers"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,16 +23,20 @@ func main() {
 		log.Fatalf("Failed to initialize Aptos client: %v", err)
 	}
 
+	// Initialize EVM client
+	evmClient, err := client.NewEVMClient(cfg)
+	if err != nil {
+		log.Printf("Warning: Failed to initialize EVM client: %v. EVM payments will not be available.", err)
+		evmClient = nil
+	}
+
 	log.Printf("Merchant address: %s", aptosClient.GetMerchantAddress())
 	if paymasterAddr := aptosClient.GetPaymasterAddress(); paymasterAddr != "" {
 		log.Printf("Paymaster address: %s", paymasterAddr)
 	}
 
-	// Initialize handlers
-	handler := handlers.NewHandler(aptosClient)
-
 	// Initialize OpenAPI server
-	apiServer := api.NewAPIServer(aptosClient)
+	apiServer := api.NewAPIServer(aptosClient, evmClient)
 
 	// Setup Gin router
 	router := gin.Default()
@@ -46,7 +49,6 @@ func main() {
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
-			return
 		}
 
 		c.Next()
@@ -57,22 +59,6 @@ func main() {
 
 	// Setup API documentation
 	api.SetupDocumentationRoutes(router)
-
-	// Legacy API routes (v1) - keeping for backward compatibility
-	legacyApi := router.Group("/api/v1")
-	{
-		// Health check
-		legacyApi.GET("/health", handler.HealthCheck)
-
-		// Merchant precommit endpoint
-		legacyApi.POST("/merchant/precommit", handler.MerchantPrecommit)
-
-		// Payment completion endpoint
-		legacyApi.POST("/payment/complete", handler.CompletePayment)
-
-		// Utility endpoint to compute payment hash
-		legacyApi.POST("/utils/compute-hash", handler.ComputePaymentHash)
-	}
 
 	// Start server
 	log.Printf("Server starting on :%s", cfg.Port)

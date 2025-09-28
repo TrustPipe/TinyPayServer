@@ -19,6 +19,12 @@ type Config struct {
 	USDCContractAddress string // Legacy coin type address
 	USDCMetadataAddress string // FA metadata address
 
+	// EVM Configuration
+	EVMRPCURL          string
+	EVMChainID         uint64
+	EVMContractAddress string
+	EVMPrivateKey      string
+
 	// Server Configuration
 	Port string
 
@@ -44,6 +50,10 @@ func LoadConfig() *Config {
 		ContractAddress:     getEnv("CONTRACT_ADDRESS", ""),
 		USDCContractAddress: getEnv("USDC_CONTRACT_ADDRESS", "0xaadbf0681ef3dc9decd123340db16954f85319853533ed4ace6ec5d11aaad190::test_usdc::TestUSDC"),
 		USDCMetadataAddress: getEnv("USDC_METADATA_ADDRESS", "0x331ebb81b96e2b0114a68a070d433ac9659361f1eab45f831a437df1fde51fde"),
+		EVMRPCURL:           getEnv("EVM_RPC_URL", ""),
+		EVMChainID:          getEnvUint64("EVM_CHAIN_ID", 0),
+		EVMContractAddress:  getEnv("EVM_CONTRACT_ADDRESS", ""),
+		EVMPrivateKey:       getEnv("EVM_PRIVATE_KEY", ""),
 		Port:                getEnv("PORT", "9090"),
 		MerchantPrivateKey:  getEnv("MERCHANT_PRIVATE_KEY", ""),
 		PaymasterPrivateKey: getEnv("PAYMASTER_PRIVATE_KEY", ""),

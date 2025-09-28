@@ -86,11 +86,12 @@ paths:
               basic_payment:
                 summary: 基本支付示例
                 value:
-                  payer_addr: "0x1234567890abcdef1234567890abcdef12345678"
-                  opt: "deadbeef"
-                  payee_addr: "0xabcdef1234567890abcdef1234567890abcdef12"
+                  payer_addr: "0xEBcddFf6ECD3c3Ddc542a5DCB109ADd04b1eB7e9"
+                  opt: "84eb882e56142984dea2fee9772d60c05d3885941fd2522761451446f46ae437"
+                  payee_addr: "0xEBcddFf6ECD3c3Ddc542a5DCB109ADd04b1eB7e9"
                   amount: 1000000
-                  currency: "APT"
+                  currency: "ETH"
+                  network: "eth-sepolia"
       responses:
         '200':
           description: 交易创建成功
@@ -277,8 +278,14 @@ components:
           type: string
           description: 货币种类
           default: "APT"
-          enum: ["APT", "USDC"]
+          enum: ["APT", "USDC", "ETH"]
           example: "APT"
+        network:
+          type: string
+          description: 目标网络
+          default: "aptos-testnet"
+          enum: ["aptos-testnet", "eth-sepolia"]
+          example: "eth-sepolia"
 
 tags:
   - name: payments

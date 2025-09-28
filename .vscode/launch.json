@@ -11,7 +11,8 @@
             "env": {
                 "http_proxy": "http://localhost:7897",
                 "https_proxy": "http://localhost:7897",
-                "all_proxy": "socks5://localhost:7897"
+                "all_proxy": "socks5://localhost:7897",
+                "no_proxy": "localhost,127.0.0.1,::1,.local"
             },
             "args": [],
         },
