@@ -17,8 +17,8 @@ func HexToASCIIBytes(hexStr string) []byte {
 // GetMetadataMapping 根据配置获取币种到 FA metadata 地址的映射
 func GetMetadataMapping(cfg *config.Config) map[string]string {
 	return map[string]string{
-		"APT":  "0xA", // APT still uses coin type for now
-		"USDC": cfg.USDCMetadataAddress,
+		"APT":  "0xa", // Normalize to lowercase for comparisons
+		"USDC": strings.ToLower(cfg.USDCMetadataAddress),
 	}
 }
 
@@ -34,7 +34,7 @@ func GetCoinType(cfg *config.Config, currency string) (string, error) {
 		return "", fmt.Errorf("unsupported currency: %s", currency)
 	}
 
-	return coinType, nil
+	return strings.ToLower(coinType), nil
 }
 
 // GetSupportedCurrencies 获取支持的币种列表
@@ -59,14 +59,14 @@ func GetMetadataAddress(cfg *config.Config, currency string) (string, error) {
 		return "", fmt.Errorf("unsupported currency: %s", currency)
 	}
 
-	return metadataAddr, nil
+	return strings.ToLower(metadataAddr), nil
 }
 
 // GetCurrencyFromCoinType 根据合约类型获取币种名称（反向映射）
 func GetCurrencyFromCoinType(cfg *config.Config, coinType string) string {
 	coinTypeMapping := GetMetadataMapping(cfg)
 	for currency, contractType := range coinTypeMapping {
-		if contractType == coinType {
+		if strings.EqualFold(contractType, coinType) {
 			return currency
 		}
 	}
@@ -75,9 +75,10 @@ func GetCurrencyFromCoinType(cfg *config.Config, coinType string) string {
 
 // GetCurrencyFromMetadata 根据 metadata 地址获取币种名称（反向映射）
 func GetCurrencyFromMetadata(cfg *config.Config, metadataAddr string) string {
+	target := strings.ToLower(strings.TrimSpace(metadataAddr))
 	metadataMapping := GetMetadataMapping(cfg)
 	for currency, addr := range metadataMapping {
-		if addr == metadataAddr {
+		if strings.ToLower(strings.TrimSpace(addr)) == target {
 			return currency
 		}
 	}
