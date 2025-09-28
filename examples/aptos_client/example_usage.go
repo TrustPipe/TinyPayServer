@@ -31,14 +31,14 @@ func main() {
 	payer := "0x1234567890abcdef1234567890abcdef12345678"
 	recipient := "0xabcdef1234567890abcdef1234567890abcdef12"
 	amount := uint64(1000000) // 1 APT (假设精度为 8)
-	opt := "previous_iteration_hex_string"
+	otp := "previous_iteration_hex_string"
 
-	optBytes, _ := hex.DecodeString(opt)
+	optBytes, _ := hex.DecodeString(otp)
 	hash, err := aptosClient.ComputePaymentHash(payer, recipient, amount, optBytes)
 	if err != nil {
 		log.Fatalf("Failed to compute hash: %v", err)
 	}
-	
+
 	fmt.Printf("Payment Hash: %s\n", hex.EncodeToString(hash))
 
 	// 示例 2: 商户预提交 (需要实际的网络连接)

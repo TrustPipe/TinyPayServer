@@ -37,7 +37,7 @@
    ```bash
    # 构建并启动所有服务
    docker-compose up --build
-   
+
    # 后台运行
    docker-compose up -d --build
    ```
@@ -122,7 +122,7 @@ curl -X POST https://api-tinypay.predictplay.xyz/api/payments \
     "payer_addr": "0x1234...",
     "payee_addr": "0x5678...",
     "amount": 1000000,
-    "opt": "deadbeef"
+    "otp": "deadbeef"
   }'
 ```
 

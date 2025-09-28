@@ -147,13 +147,13 @@ func (ac *AptosClient) MerchantPrecommit(commitHash []byte) (string, error) {
 }
 
 // CompletePayment completes a payment transaction with APT using FA system
-func (ac *AptosClient) CompletePayment(opt []byte, payer, recipient string, amount uint64, commitHash []byte) (string, error) {
+func (ac *AptosClient) CompletePayment(otp []byte, payer, recipient string, amount uint64, commitHash []byte) (string, error) {
 	// Default to APT metadata address
-	return ac.CompletePaymentWithFA(opt, payer, recipient, amount, commitHash, "APT")
+	return ac.CompletePaymentWithFA(otp, payer, recipient, amount, commitHash, "APT")
 }
 
 // CompletePaymentWithCoinType completes a payment transaction with specified coin type
-func (ac *AptosClient) CompletePaymentWithCoinType(opt []byte, payer, recipient string, amount uint64, commitHash []byte, coinType string) (string, error) {
+func (ac *AptosClient) CompletePaymentWithCoinType(otp []byte, payer, recipient string, amount uint64, commitHash []byte, coinType string) (string, error) {
 	log.Printf("Executing complete_payment - Payer: %s, Recipient: %s, Amount: %d, CoinType: %s", payer, recipient, amount, coinType)
 
 	// Parse addresses
@@ -161,9 +161,9 @@ func (ac *AptosClient) CompletePaymentWithCoinType(opt []byte, payer, recipient 
 	recipientAddr := parseAccountAddress(recipient)
 
 	// Serialize parameters
-	optBytes, err := bcs.SerializeBytes(opt)
+	optBytes, err := bcs.SerializeBytes(otp)
 	if err != nil {
-		return "", fmt.Errorf("failed to serialize opt: %w", err)
+		return "", fmt.Errorf("failed to serialize otp: %w", err)
 	}
 
 	payerBytes, err := bcs.Serialize(&payerAddr)
@@ -268,7 +268,7 @@ func (ac *AptosClient) CompletePaymentWithCoinType(opt []byte, payer, recipient 
 }
 
 // CompletePaymentWithFA completes a payment transaction using FA (Fungible Asset) system
-func (ac *AptosClient) CompletePaymentWithFA(opt []byte, payer, recipient string, amount uint64, commitHash []byte, currency string) (string, error) {
+func (ac *AptosClient) CompletePaymentWithFA(otp []byte, payer, recipient string, amount uint64, commitHash []byte, currency string) (string, error) {
 	log.Printf("Executing complete_payment with FA - Payer: %s, Recipient: %s, Amount: %d, Currency: %s", payer, recipient, amount, currency)
 
 	// Get metadata address for the currency
@@ -283,9 +283,9 @@ func (ac *AptosClient) CompletePaymentWithFA(opt []byte, payer, recipient string
 	metadataAddress := parseAccountAddress(metadataAddr)
 
 	// Serialize parameters
-	optBytes, err := bcs.SerializeBytes(opt)
+	optBytes, err := bcs.SerializeBytes(otp)
 	if err != nil {
-		return "", fmt.Errorf("failed to serialize opt: %w", err)
+		return "", fmt.Errorf("failed to serialize otp: %w", err)
 	}
 
 	payerBytes, err := bcs.Serialize(&payerAddr)
@@ -390,13 +390,13 @@ func (ac *AptosClient) CompletePaymentWithFA(opt []byte, payer, recipient string
 }
 
 // Helper function to compute payment parameters hash for FA system
-func (ac *AptosClient) ComputePaymentHash(payer, recipient string, amount uint64, opt []byte) ([]byte, error) {
+func (ac *AptosClient) ComputePaymentHash(payer, recipient string, amount uint64, otp []byte) ([]byte, error) {
 	// Default to APT for backward compatibility
-	return ac.ComputePaymentHashWithCurrency(payer, recipient, amount, opt, "APT")
+	return ac.ComputePaymentHashWithCurrency(payer, recipient, amount, otp, "APT")
 }
 
 // ComputePaymentHashWithCurrency computes payment hash with specific currency for FA system
-func (ac *AptosClient) ComputePaymentHashWithCurrency(payer, recipient string, amount uint64, opt []byte, currency string) ([]byte, error) {
+func (ac *AptosClient) ComputePaymentHashWithCurrency(payer, recipient string, amount uint64, otp []byte, currency string) ([]byte, error) {
 	// Parse addresses
 	payerAddr := parseAccountAddress(payer)
 	recipientAddr := parseAccountAddress(recipient)
@@ -424,9 +424,9 @@ func (ac *AptosClient) ComputePaymentHashWithCurrency(payer, recipient string, a
 		return nil, fmt.Errorf("failed to serialize amount: %w", err)
 	}
 
-	optBytes, err := bcs.SerializeBytes(opt)
+	optBytes, err := bcs.SerializeBytes(otp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to serialize opt: %w", err)
+		return nil, fmt.Errorf("failed to serialize otp: %w", err)
 	}
 
 	metadataBytes, err := bcs.Serialize(&metadataAddress)
@@ -476,10 +476,10 @@ func (ac *AptosClient) GetConfig() *config.Config {
 }
 
 // SimulatePayment simulates a payment transaction without submitting it
-func (ac *AptosClient) SimulatePayment(opt []byte, payer, recipient string, amount uint64) (*aptos.Account, *aptos.RawTransaction, error) {
+func (ac *AptosClient) SimulatePayment(otp []byte, payer, recipient string, amount uint64) (*aptos.Account, *aptos.RawTransaction, error) {
 	log.Printf("Simulating payment - Payer: %s, Recipient: %s, Amount: %d", payer, recipient, amount)
 
-	caller, rawTxn, err := ac.paymentsRawTx(opt, payer, recipient, amount)
+	caller, rawTxn, err := ac.paymentsRawTx(otp, payer, recipient, amount)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -508,15 +508,15 @@ func (ac *AptosClient) SimulatePayment(opt []byte, payer, recipient string, amou
 }
 
 // paymentsRawTxWithCoinType creates a raw transaction for payment with specified coin type
-func (ac *AptosClient) paymentsRawTxWithCoinType(opt []byte, payer string, recipient string, amount uint64, coinType string) (*aptos.Account, *aptos.RawTransaction, error) {
+func (ac *AptosClient) paymentsRawTxWithCoinType(otp []byte, payer string, recipient string, amount uint64, coinType string) (*aptos.Account, *aptos.RawTransaction, error) {
 	// Parse addresses
 	payerAddr := parseAccountAddress(payer)
 	recipientAddr := parseAccountAddress(recipient)
 
 	// Serialize parameters
-	optBytes, err := bcs.SerializeBytes(opt)
+	optBytes, err := bcs.SerializeBytes(otp)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to serialize opt: %w", err)
+		return nil, nil, fmt.Errorf("failed to serialize otp: %w", err)
 	}
 
 	payerBytes, err := bcs.Serialize(&payerAddr)
@@ -542,7 +542,7 @@ func (ac *AptosClient) paymentsRawTxWithCoinType(opt []byte, payer string, recip
 	} else {
 		caller = ac.merchantAccount
 		// Compute commit hash for simulation
-		commitHash, err = ac.ComputePaymentHash(payer, recipient, amount, opt)
+		commitHash, err = ac.ComputePaymentHash(payer, recipient, amount, otp)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to compute commit hash: %w", err)
 		}
@@ -588,15 +588,15 @@ func (ac *AptosClient) paymentsRawTxWithCoinType(opt []byte, payer string, recip
 	return caller, rawTxn, nil
 }
 
-func (ac *AptosClient) paymentsRawTx(opt []byte, payer string, recipient string, amount uint64) (*aptos.Account, *aptos.RawTransaction, error) {
+func (ac *AptosClient) paymentsRawTx(otp []byte, payer string, recipient string, amount uint64) (*aptos.Account, *aptos.RawTransaction, error) {
 	// Parse addresses
 	payerAddr := parseAccountAddress(payer)
 	recipientAddr := parseAccountAddress(recipient)
 
 	// Serialize parameters
-	optBytes, err := bcs.SerializeBytes(opt)
+	optBytes, err := bcs.SerializeBytes(otp)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to serialize opt: %w", err)
+		return nil, nil, fmt.Errorf("failed to serialize otp: %w", err)
 	}
 
 	payerBytes, err := bcs.Serialize(&payerAddr)
@@ -622,7 +622,7 @@ func (ac *AptosClient) paymentsRawTx(opt []byte, payer string, recipient string,
 	} else {
 		caller = ac.merchantAccount
 		// Compute commit hash for simulation
-		commitHash, err = ac.ComputePaymentHash(payer, recipient, amount, opt)
+		commitHash, err = ac.ComputePaymentHash(payer, recipient, amount, otp)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to compute commit hash: %w", err)
 		}
@@ -800,11 +800,11 @@ func (ac *AptosClient) GetTransactionDetails(txHash string) (*TransactionInfo, e
 }
 
 // SubmitPayment creates and submits a payment transaction
-func (ac *AptosClient) SubmitPayment(opt []byte, payer, recipient string, amount uint64) (string, error) {
+func (ac *AptosClient) SubmitPayment(otp []byte, payer, recipient string, amount uint64) (string, error) {
 	log.Printf("Submitting payment - Payer: %s, Recipient: %s, Amount: %d", payer, recipient, amount)
 
 	// First simulate the transaction
-	caller, rawTxn, err := ac.SimulatePayment(opt, payer, recipient, amount)
+	caller, rawTxn, err := ac.SimulatePayment(otp, payer, recipient, amount)
 	if err != nil {
 		return "", fmt.Errorf("simulation failed: %w", err)
 	}

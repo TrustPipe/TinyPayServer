@@ -57,7 +57,7 @@ type PaymentRequest struct {
 	Network *PaymentRequestNetwork `json:"network,omitempty"`
 
 	// Opt OPT hex格式
-	Opt string `json:"opt"`
+	Opt string `json:"otp"`
 
 	// PayeeAddr 收款地址 hex格式
 	PayeeAddr string `json:"payee_addr"`

@@ -96,7 +96,7 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 	// Check for missing fields after successful JSON binding (PayerAddr already validated above)
 	missingFields := []string{}
 	if req.Opt == "" {
-		missingFields = append(missingFields, "opt")
+		missingFields = append(missingFields, "otp")
 	}
 	if req.PayeeAddr == "" {
 		missingFields = append(missingFields, "payee_addr")
@@ -168,7 +168,7 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 
 	// Convert hex strings to bytes
 	optBytes := utils.HexToASCIIBytes(req.Opt)
-	log.Printf("\nAptos CLI format for opt:\n")
+	log.Printf("\nAptos CLI format for otp:\n")
 	fmt.Printf("u8:[")
 	for i, b := range optBytes {
 		if i > 0 {

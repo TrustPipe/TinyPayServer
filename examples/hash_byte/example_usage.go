@@ -8,10 +8,10 @@ import (
 
 // VerifyHashChain 验证哈希链的正确性
 func VerifyHashChain(optHex, expectedTailHex string) bool {
-	// 将 opt 转换为 ASCII 字节
+	// 将 otp 转换为 ASCII 字节
 	optASCIIBytes := utils.HexToASCIIBytes(optHex)
 
-	// 对 opt ASCII 字节进行 SHA256 哈希
+	// 对 otp ASCII 字节进行 SHA256 哈希
 	hash := sha256.Sum256(optASCIIBytes)
 
 	// 将哈希结果转换为十六进制字符串
@@ -29,9 +29,9 @@ func main() {
 	optASCIIBytes := utils.HexToASCIIBytes(optHex)
 	tailASCIIBytes := utils.HexToASCIIBytes(tailHex)
 
-	fmt.Printf("opt hex: %s\n", optHex)
-	fmt.Printf("opt ASCII bytes: %v\n", optASCIIBytes)
-	fmt.Printf("opt ASCII bytes length: %d\n", len(optASCIIBytes))
+	fmt.Printf("otp hex: %s\n", optHex)
+	fmt.Printf("otp ASCII bytes: %v\n", optASCIIBytes)
+	fmt.Printf("otp ASCII bytes length: %d\n", len(optASCIIBytes))
 	fmt.Println()
 
 	fmt.Printf("tail hex: %s\n", tailHex)
@@ -44,7 +44,7 @@ func main() {
 	fmt.Printf("Hash chain verification: %t\n", isValid)
 
 	// 显示用于 Aptos CLI 的格式
-	fmt.Printf("\nAptos CLI format for opt:\n")
+	fmt.Printf("\nAptos CLI format for otp:\n")
 	fmt.Printf("u8:[")
 	for i, b := range optASCIIBytes {
 		if i > 0 {

@@ -72,7 +72,7 @@ components:
       type: object
       required:
         - payer_addr
-        - opt
+        - otp
         - payee_addr
         - amount
       properties:

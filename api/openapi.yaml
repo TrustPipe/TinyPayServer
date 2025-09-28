@@ -89,7 +89,7 @@ paths:
                 summary: 基本支付示例
                 value:
                   payer_addr: "0xEBcddFf6ECD3c3Ddc542a5DCB109ADd04b1eB7e9"
-                  opt: "84eb882e56142984dea2fee9772d60c05d3885941fd2522761451446f46ae437"
+                  otp: "84eb882e56142984dea2fee9772d60c05d3885941fd2522761451446f46ae437"
                   payee_addr: "0xEBcddFf6ECD3c3Ddc542a5DCB109ADd04b1eB7e9"
                   amount: 1000000
                   currency: "ETH"
@@ -268,7 +268,7 @@ components:
       type: object
       required:
         - payer_addr
-        - opt
+        - otp
         - payee_addr
         - amount
       properties:
@@ -277,7 +277,7 @@ components:
           description: 付款地址 hex格式
           pattern: '^0x[a-fA-F0-9]{1,64}$'
           example: "0x1234567890abcdef1234567890abcdef12345678"
-        opt:
+        otp:
           type: string
           description: OPT hex格式
           pattern: '^[a-fA-F0-9]+$'

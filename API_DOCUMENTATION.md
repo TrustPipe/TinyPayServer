@@ -17,7 +17,7 @@
 ```json
 {
   "payer_addr": "string",  // 付款地址 hex格式
-  "opt": "string",         // OPT hex格式 (仅 Aptos 网络需要)
+  "otp": "string",         // OPT hex格式 (仅 Aptos 网络需要)
   "payee_addr": "string",  // 收款地址 hex格式
   "amount": number,        // 金额 uint类型
   "currency": "string",    // 货币种类 (APT/ETH/USDC)
@@ -231,7 +231,7 @@ curl -X POST "http://localhost:9090/api/payments" \
   -H "Content-Type: application/json" \
   -d '{
     "payer_addr": "0x1234...",
-    "opt": "0xabcd...",
+    "otp": "0xabcd...",
     "payee_addr": "0x5678...",
     "amount": 1000000,
     "currency": "APT",
