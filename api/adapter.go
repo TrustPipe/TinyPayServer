@@ -258,52 +258,109 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 }
 
 // GetTransactionStatus implements the transaction status query endpoint
-func (s *APIServer) GetTransactionStatus(c *gin.Context, transactionHash string) {
+func (s *APIServer) GetTransactionStatus(c *gin.Context, transactionHash string, params GetTransactionStatusParams) {
 	if transactionHash == "" {
 		response := CreateApiResponseWithNullData(CodeTransactionNotFound)
 		c.JSON(http.StatusBadRequest, response)
 		return
 	}
 
-	// Get detailed transaction information
-	txInfo, err := s.aptosClient.GetTransactionDetails(transactionHash)
-	if err != nil {
-		response := CreateApiResponseWithNullData(CodeTransactionNotFound)
-		c.JSON(http.StatusNotFound, response)
-		return
-	}
-
-	if !txInfo.Confirmed {
-		data := map[string]interface{}{
-			"status": "pending",
-		}
-		response := CreateApiResponseWithMap(CodeTransactionPending, data)
-		c.JSON(http.StatusOK, response)
-		return
-	}
-
-	if txInfo.Success {
-		// Convert amount from octas to APT (1 APT = 100,000,000 octas)
-		// amountInAPT := float64(txInfo.Amount) / 100000000.0
-		data := map[string]interface{}{
-			"status":          "confirmed",
-			"received_amount": txInfo.Amount,
-			"currency":        txInfo.CoinType,
-		}
-		response := CreateApiResponseWithMap(CodeTransactionConfirmed, data)
-		c.JSON(http.StatusOK, response)
+	// Determine network from parsed params (OpenAPI), fallback to query param; default to aptos-testnet
+	network := "aptos-testnet"
+	if params.Network != nil {
+		network = string(*params.Network)
 	} else {
-		data := map[string]interface{}{
-			"status": "failed",
-			"error":  txInfo.Error,
+		if qn := c.Query("network"); qn != "" {
+			network = qn
 		}
-		response := CreateApiResponseWithMap(CodeTransactionConfirmed, data)
-		c.JSON(http.StatusOK, response)
+	}
+
+	switch network {
+	case "aptos-testnet":
+		// Get detailed transaction information from Aptos
+		txInfo, err := s.aptosClient.GetTransactionDetails(transactionHash)
+		if err != nil {
+			response := CreateApiResponseWithNullData(CodeTransactionNotFound)
+			c.JSON(http.StatusNotFound, response)
+			return
+		}
+
+		if !txInfo.Confirmed {
+			data := map[string]interface{}{
+				"status":  "pending",
+				"network": network,
+			}
+			response := CreateApiResponseWithMap(CodeTransactionPending, data)
+			c.JSON(http.StatusOK, response)
+			return
+		}
+
+		if txInfo.Success {
+			data := map[string]interface{}{
+				"status":          "confirmed",
+				"received_amount": txInfo.Amount,
+				"currency":        txInfo.CoinType,
+				"network":         network,
+			}
+			response := CreateApiResponseWithMap(CodeTransactionConfirmed, data)
+			c.JSON(http.StatusOK, response)
+		} else {
+			data := map[string]interface{}{
+				"status":  "failed",
+				"error":   txInfo.Error,
+				"network": network,
+			}
+			response := CreateApiResponseWithMap(CodeTransactionConfirmed, data)
+			c.JSON(http.StatusOK, response)
+		}
+	case "eth-sepolia":
+		if s.evmClient == nil {
+			response := CreateApiResponseWithNullData(CodeInvalidOpt)
+			c.JSON(http.StatusInternalServerError, response)
+			return
+		}
+		// Fetch EVM transaction details
+		txInfo, err := s.evmClient.GetTransactionDetails(c.Request.Context(), transactionHash)
+		if err != nil {
+			response := CreateApiResponseWithNullData(CodeTransactionNotFound)
+			c.JSON(http.StatusNotFound, response)
+			return
+		}
+		if !txInfo.Confirmed {
+			data := map[string]interface{}{
+				"status":  "pending",
+				"network": network,
+			}
+			response := CreateApiResponseWithMap(CodeTransactionPending, data)
+			c.JSON(http.StatusOK, response)
+			return
+		}
+		if txInfo.Success {
+			data := map[string]interface{}{
+				"status":          "confirmed",
+				"received_amount": txInfo.Amount,
+				"currency":        "ETH",
+				"network":         network,
+			}
+			response := CreateApiResponseWithMap(CodeTransactionConfirmed, data)
+			c.JSON(http.StatusOK, response)
+		} else {
+			data := map[string]interface{}{
+				"status":  "failed",
+				"error":   txInfo.Error,
+				"network": network,
+			}
+			response := CreateApiResponseWithMap(CodeTransactionConfirmed, data)
+			c.JSON(http.StatusOK, response)
+		}
+	default:
+		response := CreateApiResponseWithNullData(CodeInvalidOpt)
+		c.JSON(http.StatusBadRequest, response)
 	}
 }
 
 // GetUserLimits implements the GET /api/users/{user_address}/limits endpoint
-func (s *APIServer) GetUserLimits(c *gin.Context, userAddress string) {
+func (s *APIServer) GetUserLimits(c *gin.Context, userAddress string, params GetUserLimitsParams) {
 	log.Printf("Getting user limits for address: %s", userAddress)
 
 	// Validate user address format
@@ -313,19 +370,52 @@ func (s *APIServer) GetUserLimits(c *gin.Context, userAddress string) {
 		return
 	}
 
-	// Call the contract view function
-	userLimits, err := s.aptosClient.GetUserLimits(userAddress)
-	if err != nil {
-		log.Printf("Failed to get user limits: %v", err)
-		response := CreateApiResponseWithNullData(CodeInvalidOpt)
-		c.JSON(http.StatusBadRequest, response)
-		return
+	// Determine network from parsed params (OpenAPI), fallback to query param; default to aptos-testnet
+	network := "aptos-testnet"
+	if params.Network != nil {
+		network = string(*params.Network)
+	} else {
+		if qn := c.Query("network"); qn != "" {
+			network = qn
+		}
 	}
 
-	// Return successful response
-	data := map[string]interface{}{
-		"user_limits": userLimits,
+	switch network {
+	case "aptos-testnet":
+		userLimits, err := s.aptosClient.GetUserLimits(userAddress)
+		if err != nil {
+			log.Printf("Failed to get user limits: %v", err)
+			response := CreateApiResponseWithNullData(CodeInvalidOpt)
+			c.JSON(http.StatusBadRequest, response)
+			return
+		}
+		data := map[string]interface{}{
+			"user_limits": userLimits,
+			"network":     network,
+		}
+		response := CreateApiResponseWithMap(CodeServerHealthy, data)
+		c.JSON(http.StatusOK, response)
+	case "eth-sepolia":
+		if s.evmClient == nil {
+			response := CreateApiResponseWithNullData(CodeInvalidOpt)
+			c.JSON(http.StatusInternalServerError, response)
+			return
+		}
+		userLimits, err := s.evmClient.GetUserLimits(c.Request.Context(), userAddress)
+		if err != nil {
+			log.Printf("Failed to get EVM user limits: %v", err)
+			response := CreateApiResponseWithNullData(CodeInvalidOpt)
+			c.JSON(http.StatusBadRequest, response)
+			return
+		}
+		data := map[string]interface{}{
+			"user_limits": userLimits,
+			"network":     network,
+		}
+		response := CreateApiResponseWithMap(CodeServerHealthy, data)
+		c.JSON(http.StatusOK, response)
+	default:
+		response := CreateApiResponseWithNullData(CodeInvalidOpt)
+		c.JSON(http.StatusBadRequest, response)
 	}
-	response := CreateApiResponseWithMap(CodeServerHealthy, data)
-	c.JSON(http.StatusOK, response)
 }

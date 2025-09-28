@@ -28,6 +28,8 @@ info:
     - 2003: OPT 不正确
     - 2004: 缺少必需字段
     - 2005: 交易不存在
+    - 2006: 无效的货币种类
+
 
     ## 使用流程
     1. 前端调用 `POST /api/payments` 创建支付交易
@@ -142,6 +144,16 @@ paths:
             type: string
             pattern: '^0x[a-fA-F0-9]{64}$'
             example: "0x1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890"
+        - name: network
+          in: query
+          required: false
+          description: 目标网络
+          schema:
+            type: string
+            enum: ["aptos-testnet", "eth-sepolia"]
+            default: "aptos-testnet"
+          example: "eth-sepolia"
+
       responses:
         '200':
           description: 交易状态查询成功
@@ -156,14 +168,17 @@ paths:
                     code: 1002
                     data:
                       status: "pending"
+                      network: "aptos-testnet"
                 confirmed:
                   summary: 交易确认成功
+                  description: currency 字段根据网络而变化：APT(aptos-testnet) 或 ETH(eth-sepolia)
                   value:
                     code: 1003
                     data:
                       status: "confirmed"
-                      received_amount: "100.5"
+                      received_amount: 1000000
                       currency: "APT"
+                      network: "aptos-testnet"
         '404':
           description: 交易不存在
           content:
@@ -193,6 +208,15 @@ paths:
             type: string
             pattern: '^0x[a-fA-F0-9]{1,64}$'
             example: "0x1234567890abcdef1234567890abcdef12345678"
+        - name: network
+          in: query
+          required: false
+          description: 目标网络
+          schema:
+            type: string
+            enum: ["aptos-testnet", "eth-sepolia"]
+            default: "aptos-testnet"
+          example: "eth-sepolia"
       responses:
         '200':
           description: 用户限制查询成功
@@ -203,20 +227,15 @@ paths:
               examples:
                 success:
                   summary: 查询成功
+                  description: network 字段根据请求参数而变化：aptos-testnet 或 eth-sepolia
                   value:
-                    code: 1004
+                    code: 1000
                     data:
-                      payment_limit: 1000000
-                      tail_update_count: 5
-                      max_tail_updates: 10
-                not_found:
-                  summary: 用户不存在
-                  value:
-                    code: 1004
-                    data:
-                      payment_limit: 0
-                      tail_update_count: 0
-                      max_tail_updates: 0
+                      user_limits:
+                        payment_limit: 1000000
+                        tail_update_count: 5
+                        max_tail_updates: 10
+                      network: "aptos-testnet"
         '400':
           description: 请求错误
           content:
@@ -227,7 +246,7 @@ paths:
                 invalid_address:
                   summary: 无效地址格式
                   value:
-                    code: 2006
+                    code: 2003
                     data: null
 
 components:

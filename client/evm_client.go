@@ -148,3 +148,73 @@ func ensureHexPrefix(value string) string {
 	}
 	return "0x" + value
 }
+
+// GetTransactionDetails retrieves EVM transaction status and extracts amount from PaymentCompleted event when available.
+func (c *EVMClient) GetTransactionDetails(ctx context.Context, txHashHex string) (*TransactionInfo, error) {
+	if c == nil || c.ethClient == nil || c.contract == nil {
+		return nil, errors.New("EVM client not initialized")
+	}
+	// Normalize hash
+	hash := common.HexToHash(ensureHexPrefix(txHashHex))
+
+	// Check pending status first
+	_, isPending, err := c.ethClient.TransactionByHash(ctx, hash)
+	if err != nil {
+		// Not found or RPC error
+		return nil, fmt.Errorf("transaction not found: %w", err)
+	}
+	if isPending {
+		return &TransactionInfo{Confirmed: false}, nil
+	}
+
+	// Fetch receipt
+	receipt, err := c.ethClient.TransactionReceipt(ctx, hash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get receipt: %w", err)
+	}
+
+	info := &TransactionInfo{Confirmed: true, Success: receipt.Status == 1}
+
+	// Try to parse PaymentCompleted event to get amount and token
+	for _, lg := range receipt.Logs {
+		if lg == nil {
+			continue
+		}
+		// Attempt to parse; ignore errors for non-matching topics
+		if evt, err := c.contract.ParsePaymentCompleted(*lg); err == nil {
+			// Amount
+			if evt.Amount != nil {
+				info.Amount = evt.Amount.Uint64()
+			}
+			// CoinType: zero address means native token (ETH)
+			if (evt.Token == common.Address{}) {
+				info.CoinType = "ETH"
+			} else {
+				info.CoinType = "ETH" // default for now; extend if ERC20 supported
+			}
+			break
+		}
+	}
+
+	if !info.Success {
+		info.Error = "execution failed"
+	}
+	return info, nil
+}
+
+// GetUserLimits returns TinyPay user limits on EVM
+func (c *EVMClient) GetUserLimits(ctx context.Context, userAddress string) (*UserLimits, error) {
+	if c == nil || c.contract == nil {
+		return nil, errors.New("EVM client not initialized")
+	}
+	addr := common.HexToAddress(ensureHexPrefix(userAddress))
+	res, err := c.contract.GetUserLimits(&bind.CallOpts{Context: ctx}, addr)
+	if err != nil {
+		return nil, fmt.Errorf("getUserLimits failed: %w", err)
+	}
+	return &UserLimits{
+		PaymentLimit:    res.PaymentLimit,
+		TailUpdateCount: res.TailUpdateCount,
+		MaxTailUpdates:  res.MaxTailUpdates,
+	}, nil
+}

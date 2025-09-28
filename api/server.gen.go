@@ -20,8 +20,20 @@ const (
 
 // Defines values for PaymentRequestNetwork.
 const (
-	AptosTestnet PaymentRequestNetwork = "aptos-testnet"
-	EthSepolia   PaymentRequestNetwork = "eth-sepolia"
+	PaymentRequestNetworkAptosTestnet PaymentRequestNetwork = "aptos-testnet"
+	PaymentRequestNetworkEthSepolia   PaymentRequestNetwork = "eth-sepolia"
+)
+
+// Defines values for GetTransactionStatusParamsNetwork.
+const (
+	GetTransactionStatusParamsNetworkAptosTestnet GetTransactionStatusParamsNetwork = "aptos-testnet"
+	GetTransactionStatusParamsNetworkEthSepolia   GetTransactionStatusParamsNetwork = "eth-sepolia"
+)
+
+// Defines values for GetUserLimitsParamsNetwork.
+const (
+	AptosTestnet GetUserLimitsParamsNetwork = "aptos-testnet"
+	EthSepolia   GetUserLimitsParamsNetwork = "eth-sepolia"
 )
 
 // ApiResponse defines model for ApiResponse.
@@ -60,6 +72,24 @@ type PaymentRequestCurrency string
 // PaymentRequestNetwork 目标网络
 type PaymentRequestNetwork string
 
+// GetTransactionStatusParams defines parameters for GetTransactionStatus.
+type GetTransactionStatusParams struct {
+	// Network 目标网络
+	Network *GetTransactionStatusParamsNetwork `form:"network,omitempty" json:"network,omitempty"`
+}
+
+// GetTransactionStatusParamsNetwork defines parameters for GetTransactionStatus.
+type GetTransactionStatusParamsNetwork string
+
+// GetUserLimitsParams defines parameters for GetUserLimits.
+type GetUserLimitsParams struct {
+	// Network 目标网络
+	Network *GetUserLimitsParamsNetwork `form:"network,omitempty" json:"network,omitempty"`
+}
+
+// GetUserLimitsParamsNetwork defines parameters for GetUserLimits.
+type GetUserLimitsParamsNetwork string
+
 // CreatePaymentJSONRequestBody defines body for CreatePayment for application/json ContentType.
 type CreatePaymentJSONRequestBody = PaymentRequest
 
@@ -73,10 +103,10 @@ type ServerInterface interface {
 	CreatePayment(c *gin.Context)
 	// 查询交易状态
 	// (GET /api/payments/{transaction_hash})
-	GetTransactionStatus(c *gin.Context, transactionHash string)
+	GetTransactionStatus(c *gin.Context, transactionHash string, params GetTransactionStatusParams)
 	// 查询用户限制
 	// (GET /api/users/{user_address}/limits)
-	GetUserLimits(c *gin.Context, userAddress string)
+	GetUserLimits(c *gin.Context, userAddress string, params GetUserLimitsParams)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
@@ -128,6 +158,17 @@ func (siw *ServerInterfaceWrapper) GetTransactionStatus(c *gin.Context) {
 		return
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTransactionStatusParams
+
+	// ------------- Optional query parameter "network" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "network", c.Request.URL.Query(), &params.Network)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter network: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -135,7 +176,7 @@ func (siw *ServerInterfaceWrapper) GetTransactionStatus(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetTransactionStatus(c, transactionHash)
+	siw.Handler.GetTransactionStatus(c, transactionHash, params)
 }
 
 // GetUserLimits operation middleware
@@ -152,6 +193,17 @@ func (siw *ServerInterfaceWrapper) GetUserLimits(c *gin.Context) {
 		return
 	}
 
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetUserLimitsParams
+
+	// ------------- Optional query parameter "network" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "network", c.Request.URL.Query(), &params.Network)
+	if err != nil {
+		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter network: %w", err), http.StatusBadRequest)
+		return
+	}
+
 	for _, middleware := range siw.HandlerMiddlewares {
 		middleware(c)
 		if c.IsAborted() {
@@ -159,7 +211,7 @@ func (siw *ServerInterfaceWrapper) GetUserLimits(c *gin.Context) {
 		}
 	}
 
-	siw.Handler.GetUserLimits(c, userAddress)
+	siw.Handler.GetUserLimits(c, userAddress, params)
 }
 
 // GinServerOptions provides options for the Gin server.
