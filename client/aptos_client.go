@@ -671,22 +671,6 @@ type TransactionInfo struct {
 	Error     string
 }
 
-// parseCoinType converts a coin_type string to a human-readable currency type
-func parseCoinType(coinType string) string {
-	if coinType == "0x1::aptos_coin::AptosCoin" {
-		return "APT"
-	}
-	// Check for USDC patterns (both test and mainnet)
-	if coinType == "0x1::test_usdc::TestUSDC" ||
-		coinType == "0xaadbf0681ef3dc9decd123340db16954f85319853533ed4ace6ec5d11aaad190::test_usdc::TestUSDC" ||
-		// Add other USDC patterns as needed
-		coinType == "0xf22bede237a07e121b56d91a491eb7bcdfd1f5907926a9e58338f964a01b17fa::asset::USDC" {
-		return "USDC"
-	}
-	// Default to the original coin type if not recognized
-	return coinType
-}
-
 // GetTransactionStatus gets the status of a transaction by hash
 func (ac *AptosClient) GetTransactionStatus(txHash string) (bool, error) {
 	log.Printf("Getting transaction status for hash: %s", txHash)

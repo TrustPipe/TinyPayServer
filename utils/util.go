@@ -14,18 +14,10 @@ func HexToASCIIBytes(hexStr string) []byte {
 	return []byte(strings.TrimPrefix(hexStr, "0x"))
 }
 
-// GetCoinTypeMapping 根据配置获取币种类型映射 (Legacy for coin types)
-func GetCoinTypeMapping(cfg *config.Config) map[string]string {
-	return map[string]string{
-		"APT":  "0x1::aptos_coin::AptosCoin",
-		"USDC": cfg.USDCContractAddress,
-	}
-}
-
 // GetMetadataMapping 根据配置获取币种到 FA metadata 地址的映射
 func GetMetadataMapping(cfg *config.Config) map[string]string {
 	return map[string]string{
-		"APT":  "0x1::aptos_coin::AptosCoin", // APT still uses coin type for now
+		"APT":  "0xA", // APT still uses coin type for now
 		"USDC": cfg.USDCMetadataAddress,
 	}
 }
@@ -36,7 +28,7 @@ func GetCoinType(cfg *config.Config, currency string) (string, error) {
 		currency = "APT" // 默认为APT
 	}
 
-	coinTypeMapping := GetCoinTypeMapping(cfg)
+	coinTypeMapping := GetMetadataMapping(cfg)
 	coinType, exists := coinTypeMapping[strings.ToUpper(currency)]
 	if !exists {
 		return "", fmt.Errorf("unsupported currency: %s", currency)
@@ -47,7 +39,7 @@ func GetCoinType(cfg *config.Config, currency string) (string, error) {
 
 // GetSupportedCurrencies 获取支持的币种列表
 func GetSupportedCurrencies(cfg *config.Config) []string {
-	coinTypeMapping := GetCoinTypeMapping(cfg)
+	coinTypeMapping := GetMetadataMapping(cfg)
 	currencies := make([]string, 0, len(coinTypeMapping))
 	for currency := range coinTypeMapping {
 		currencies = append(currencies, currency)
@@ -72,7 +64,7 @@ func GetMetadataAddress(cfg *config.Config, currency string) (string, error) {
 
 // GetCurrencyFromCoinType 根据合约类型获取币种名称（反向映射）
 func GetCurrencyFromCoinType(cfg *config.Config, coinType string) string {
-	coinTypeMapping := GetCoinTypeMapping(cfg)
+	coinTypeMapping := GetMetadataMapping(cfg)
 	for currency, contractType := range coinTypeMapping {
 		if contractType == coinType {
 			return currency
