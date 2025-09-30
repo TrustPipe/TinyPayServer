@@ -73,6 +73,41 @@ func GetCurrencyFromCoinType(cfg *config.Config, coinType string) string {
 	return "UNKNOWN"
 }
 
+// GetEVMTokenMapping 获取EVM代币地址映射
+func GetEVMTokenMapping(cfg *config.Config) map[string]string {
+	return map[string]string{
+		"ETH":  "0x0000000000000000000000000000000000000000", // Native ETH
+		"USDC": strings.ToLower(cfg.EVMTestUSDCAddress), // Test USDC
+	}
+}
+
+// GetEVMTokenAddress 根据币种获取EVM代币地址
+func GetEVMTokenAddress(cfg *config.Config, currency string) (string, error) {
+	if currency == "" {
+		currency = "ETH" // 默认为ETH
+	}
+
+	tokenMapping := GetEVMTokenMapping(cfg)
+	tokenAddress, exists := tokenMapping[strings.ToUpper(currency)]
+	if !exists {
+		return "", fmt.Errorf("unsupported EVM currency: %s", currency)
+	}
+
+	return strings.ToLower(tokenAddress), nil
+}
+
+// GetCurrencyFromEVMTokenAddress 根据EVM代币地址获取币种名称
+func GetCurrencyFromEVMTokenAddress(cfg *config.Config, tokenAddress string) string {
+	target := strings.ToLower(strings.TrimSpace(tokenAddress))
+	tokenMapping := GetEVMTokenMapping(cfg)
+	for currency, addr := range tokenMapping {
+		if strings.ToLower(strings.TrimSpace(addr)) == target {
+			return currency
+		}
+	}
+	return "UNKNOWN"
+}
+
 // GetCurrencyFromMetadata 根据 metadata 地址获取币种名称（反向映射）
 func GetCurrencyFromMetadata(cfg *config.Config, metadataAddr string) string {
 	target := strings.ToLower(strings.TrimSpace(metadataAddr))

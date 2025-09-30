@@ -224,6 +224,8 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 		var tokenAddress string
 		if currency == "ETH" {
 			tokenAddress = "0x0000000000000000000000000000000000000000"
+		} else if currency == "USDC" {
+			tokenAddress = s.evmClient.GetConfig().EVMTestUSDCAddress
 		} else {
 			log.Printf("Invalid currency %s for network %s", currency, network)
 			response := CreateApiResponseWithNullData(CodeInvalidCurrency)
@@ -336,10 +338,20 @@ func (s *APIServer) GetTransactionStatus(c *gin.Context, transactionHash string,
 			return
 		}
 		if txInfo.Success {
+			// Determine currency from token address
+			currency := "ETH" // Default to ETH
+			if txInfo.TokenAddress != "" && txInfo.TokenAddress != "0x0000000000000000000000000000000000000000" {
+				// Try to get currency from token address
+				currency = utils.GetCurrencyFromEVMTokenAddress(s.evmClient.GetConfig(), txInfo.TokenAddress)
+				if currency == "UNKNOWN" {
+					currency = "ETH" // Fallback to ETH if mapping fails
+				}
+			}
+			
 			data := map[string]interface{}{
 				"status":          "confirmed",
 				"received_amount": txInfo.Amount,
-				"currency":        "ETH",
+				"currency":        currency,
 				"network":         network,
 			}
 			response := CreateApiResponseWithMap(CodeTransactionConfirmed, data)

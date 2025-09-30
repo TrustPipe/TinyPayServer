@@ -24,6 +24,7 @@ type Config struct {
 	EVMChainID         uint64
 	EVMContractAddress string
 	EVMPrivateKey      string
+	EVMTestUSDCAddress string // Test USDC token address for EVM
 
 	// Server Configuration
 	Port string
@@ -54,6 +55,7 @@ func LoadConfig() *Config {
 		EVMChainID:          getEnvUint64("EVM_CHAIN_ID", 0),
 		EVMContractAddress:  getEnv("EVM_CONTRACT_ADDRESS", ""),
 		EVMPrivateKey:       getEnv("EVM_PRIVATE_KEY", ""),
+		EVMTestUSDCAddress:  getEnv("EVM_TEST_USDC_ADDRESS", "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"), // Default to provided test address
 		Port:                getEnv("PORT", "9090"),
 		MerchantPrivateKey:  getEnv("MERCHANT_PRIVATE_KEY", ""),
 		PaymasterPrivateKey: getEnv("PAYMASTER_PRIVATE_KEY", ""),

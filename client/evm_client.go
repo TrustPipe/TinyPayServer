@@ -10,6 +10,7 @@ import (
 
 	tinypaybindings "tinypay-server/binds/tinypay"
 	"tinypay-server/config"
+	"tinypay-server/utils"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -88,6 +89,11 @@ func (c *EVMClient) Close() error {
 		c.ethClient.Close()
 	}
 	return nil
+}
+
+// GetConfig returns the configuration used by this client
+func (c *EVMClient) GetConfig() *config.Config {
+	return c.cfg
 }
 
 // CompletePayment executes the TinyPay completePayment function on the EVM contract.
@@ -187,11 +193,18 @@ func (c *EVMClient) GetTransactionDetails(ctx context.Context, txHashHex string)
 				info.Amount = evt.Amount.Uint64()
 			}
 			// CoinType: zero address means native token (ETH)
-			if (evt.Token == common.Address{}) {
-				info.CoinType = "ETH"
+		if (evt.Token == common.Address{}) {
+			info.CoinType = "ETH"
+			info.TokenAddress = ""
+		} else {
+			info.TokenAddress = evt.Token.Hex()
+			// Map token address to currency using utility function
+			if currency := utils.GetCurrencyFromEVMTokenAddress(c.cfg, evt.Token.Hex()); currency != "" {
+				info.CoinType = currency
 			} else {
-				info.CoinType = "ETH" // default for now; extend if ERC20 supported
+				info.CoinType = "ETH" // fallback
 			}
+		}
 			break
 		}
 	}

@@ -507,87 +507,6 @@ func (ac *AptosClient) SimulatePayment(otp []byte, payer, recipient string, amou
 	return caller, rawTxn, nil
 }
 
-// paymentsRawTxWithCoinType creates a raw transaction for payment with specified coin type
-func (ac *AptosClient) paymentsRawTxWithCoinType(otp []byte, payer string, recipient string, amount uint64, coinType string) (*aptos.Account, *aptos.RawTransaction, error) {
-	// Parse addresses
-	payerAddr := parseAccountAddress(payer)
-	recipientAddr := parseAccountAddress(recipient)
-
-	// Serialize parameters
-	optBytes, err := bcs.SerializeBytes(otp)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to serialize otp: %w", err)
-	}
-
-	payerBytes, err := bcs.Serialize(&payerAddr)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to serialize payer address: %w", err)
-	}
-
-	recipientBytes, err := bcs.Serialize(&recipientAddr)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to serialize recipient address: %w", err)
-	}
-
-	amountBytes, err := bcs.SerializeU64(amount)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to serialize amount: %w", err)
-	}
-
-	var commitHash []byte
-	// Choose the caller (merchant or paymaster)
-	var caller *aptos.Account
-	if ac.paymasterAccount != nil {
-		caller = ac.paymasterAccount
-	} else {
-		caller = ac.merchantAccount
-		// Compute commit hash for simulation
-		commitHash, err = ac.ComputePaymentHash(payer, recipient, amount, otp)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to compute commit hash: %w", err)
-		}
-	}
-
-	commitHashBytes, err := bcs.SerializeBytes(commitHash)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to serialize commit hash: %w", err)
-	}
-
-	// Parse coin type for type arguments
-	coinTypeTag, err := aptos.ParseTypeTag(coinType)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse coin type: %w", err)
-	}
-
-	// Build transaction for simulation with generic coin type
-	rawTxn, err := ac.client.BuildTransaction(
-		caller.AccountAddress(),
-		aptos.TransactionPayload{
-			Payload: &aptos.EntryFunction{
-				Module: aptos.ModuleId{
-					Address: parseAccountAddress(ac.config.ContractAddress),
-					Name:    "tinypay",
-				},
-				Function: "complete_payment",
-				ArgTypes: []aptos.TypeTag{*coinTypeTag}, // Add coin type as type argument
-				Args: [][]byte{
-					optBytes,
-					payerBytes,
-					recipientBytes,
-					amountBytes,
-					commitHashBytes,
-				},
-			},
-		},
-		aptos.MaxGasAmount(ac.config.MaxGasAmount),
-		aptos.GasUnitPrice(ac.config.GasUnitPrice),
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to build transaction: %w", err)
-	}
-	return caller, rawTxn, nil
-}
-
 func (ac *AptosClient) paymentsRawTx(otp []byte, payer string, recipient string, amount uint64) (*aptos.Account, *aptos.RawTransaction, error) {
 	// Parse addresses
 	payerAddr := parseAccountAddress(payer)
@@ -669,6 +588,7 @@ type TransactionInfo struct {
 	Amount    uint64
 	CoinType  string // "APT" or "USDC"
 	Error     string
+	TokenAddress string // For EVM transactions, the token contract address
 }
 
 // GetTransactionStatus gets the status of a transaction by hash
