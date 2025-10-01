@@ -23,11 +23,25 @@ func main() {
 		log.Fatalf("Failed to initialize Aptos client: %v", err)
 	}
 
-	// Initialize EVM client
-	evmClient, err := client.NewEVMClient(cfg)
+	// Initialize EVM clients for different networks
+	evmClients := make(map[string]*client.EVMClient)
+
+	// Initialize Ethereum Sepolia client
+	ethSepoliaClient, err := client.NewEVMClientForNetwork(cfg, "eth-sepolia")
 	if err != nil {
-		log.Printf("Warning: Failed to initialize EVM client: %v. EVM payments will not be available.", err)
-		evmClient = nil
+		log.Printf("Warning: Failed to initialize Ethereum Sepolia client: %v. Ethereum Sepolia payments will not be available.", err)
+	} else {
+		evmClients["eth-sepolia"] = ethSepoliaClient
+		log.Printf("Ethereum Sepolia client initialized successfully")
+	}
+
+	// Initialize Celo Sepolia client
+	celoSepoliaClient, err := client.NewEVMClientForNetwork(cfg, "celo-sepolia")
+	if err != nil {
+		log.Printf("Warning: Failed to initialize Celo Sepolia client: %v. Celo Sepolia payments will not be available.", err)
+	} else {
+		evmClients["celo-sepolia"] = celoSepoliaClient
+		log.Printf("Celo Sepolia client initialized successfully")
 	}
 
 	log.Printf("Merchant address: %s", aptosClient.GetMerchantAddress())
@@ -36,7 +50,7 @@ func main() {
 	}
 
 	// Initialize OpenAPI server
-	apiServer := api.NewAPIServer(aptosClient, evmClient, cfg)
+	apiServer := api.NewAPIServer(aptosClient, evmClients, cfg)
 
 	// Setup Gin router
 	router := gin.Default()
