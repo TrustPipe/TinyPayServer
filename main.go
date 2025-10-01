@@ -26,22 +26,15 @@ func main() {
 	// Initialize EVM clients for different networks
 	evmClients := make(map[string]*client.EVMClient)
 
-	// Initialize Ethereum Sepolia client
-	ethSepoliaClient, err := client.NewEVMClientForNetwork(cfg, "eth-sepolia")
-	if err != nil {
-		log.Printf("Warning: Failed to initialize Ethereum Sepolia client: %v. Ethereum Sepolia payments will not be available.", err)
-	} else {
-		evmClients["eth-sepolia"] = ethSepoliaClient
-		log.Printf("Ethereum Sepolia client initialized successfully")
-	}
-
-	// Initialize Celo Sepolia client
-	celoSepoliaClient, err := client.NewEVMClientForNetwork(cfg, "celo-sepolia")
-	if err != nil {
-		log.Printf("Warning: Failed to initialize Celo Sepolia client: %v. Celo Sepolia payments will not be available.", err)
-	} else {
-		evmClients["celo-sepolia"] = celoSepoliaClient
-		log.Printf("Celo Sepolia client initialized successfully")
+	// Initialize EVM clients from the new EVMNetworks configuration
+	for _, evmNetwork := range cfg.EVMNetworks {
+		evmClient, err := client.NewEVMClientForNetwork(cfg, evmNetwork.Name)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize %s client: %v. %s payments will not be available.", evmNetwork.Name, err, evmNetwork.Name)
+		} else {
+			evmClients[evmNetwork.Name] = evmClient
+			log.Printf("%s client initialized successfully", evmNetwork.Name)
+		}
 	}
 
 	log.Printf("Merchant address: %s", aptosClient.GetMerchantAddress())

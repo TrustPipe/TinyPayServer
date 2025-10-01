@@ -211,3 +211,4 @@ __debug_bin*
 .idea/
 tinypay-server
 main
+config.toml

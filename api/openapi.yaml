@@ -162,9 +162,8 @@ paths:
           description: 目标网络
           schema:
             type: string
-            enum: ["aptos-testnet", "eth-sepolia", "celo-sepolia"]
             default: "aptos-testnet"
-          example: "eth-sepolia"
+          example: "aptos-testnet"
 
       responses:
         '200':
@@ -235,9 +234,8 @@ paths:
           description: 目标网络
           schema:
             type: string
-            enum: ["aptos-testnet", "eth-sepolia", "celo-sepolia"]
             default: "aptos-testnet"
-          example: "eth-sepolia"
+          example: "aptos-testnet"
       responses:
         '200':
           description: 用户限制查询成功
@@ -334,8 +332,7 @@ components:
           type: string
           description: 目标网络
           default: "aptos-testnet"
-          enum: ["aptos-testnet", "eth-sepolia", "celo-sepolia"]
-          example: "eth-sepolia"
+          example: "aptos-testnet"
 
 tags:
   - name: payments

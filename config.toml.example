@@ -1,0 +1,97 @@
+# TinyPay Server Configuration File
+# This is a TOML format configuration file that replaces the legacy .env configuration
+# 
+# Usage:
+# 1. Copy this file to config.toml
+# 2. Update the values with your actual configuration
+# 3. The server will automatically load this file on startup
+#
+# Note: All private keys and sensitive information should be kept secure
+# and never committed to version control.
+
+# Aptos Network Configuration
+[aptos]
+network = "testnet"  # Options: devnet, testnet, mainnet
+node_url = "https://fullnode.testnet.aptoslabs.com/v1"
+faucet_url = "https://faucet.testnet.aptoslabs.com"
+
+# Contract Configuration
+[contract]
+address = "0x5877584f4dbd72b5d101f32be3bea1eb67e96020ded3943919ddc80927c88893"
+usdc_metadata_address = "0x69091fbab5f7d635ee7ac5098cf0c1efbe31d68fec0f2cd565e8d168daf52832"
+
+# Server Configuration
+[server]
+port = "9090"
+
+# Gas Configuration
+[gas]
+max_gas_amount = 100000
+gas_unit_price = 100
+
+# Private Keys (DO NOT commit to version control)
+[keys]
+merchant_private_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12"
+paymaster_private_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12"
+
+# EVM Networks Configuration
+# You can add as many EVM networks as needed by adding more [[evm_networks]] sections
+# Each network must have a unique name
+
+[[evm_networks]]
+name = "eth-sepolia"
+rpc_url = "https://sepolia.infura.io/v3/YOUR_INFURA_PROJECT_ID"
+chain_id = 11155111
+contract_address = "0x0000000000000000000000000000000000000000"
+private_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12"
+
+# Native token configuration
+[evm_networks.native_token]
+symbol = "ETH"
+address = "0x0000000000000000000000000000000000000000"  # Native token typically uses zero address
+
+# ERC20 tokens supported on this network
+[[evm_networks.tokens]]
+symbol = "USDC"
+address = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
+
+[[evm_networks.tokens]]
+symbol = "USDT"
+address = "0x7169D38820bfb117C352f0893892E4D63fF2A0dD"
+
+[[evm_networks]]
+name = "celo-sepolia"
+rpc_url = "https://alfajores-forno.celo-testnet.org"
+chain_id = 44787
+contract_address = "0x0000000000000000000000000000000000000000"
+private_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12"
+
+# Native token configuration
+[evm_networks.native_token]
+symbol = "CELO"
+address = "0x0000000000000000000000000000000000000000"  # Native token typically uses zero address
+
+# ERC20 tokens supported on this network
+[[evm_networks.tokens]]
+symbol = "USDC"
+address = "0x01C5C0122039549AD1493B8220cABEdD739BC44E"
+
+[[evm_networks.tokens]]
+symbol = "cUSD"
+address = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1"
+
+# Example of adding another EVM network (uncomment and configure as needed)
+# [[evm_networks]]
+# name = "polygon-mumbai"
+# rpc_url = "https://rpc-mumbai.matic.today"
+# chain_id = 80001
+# contract_address = "0x0000000000000000000000000000000000000000"
+# private_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12"
+# 
+# [evm_networks.native_token]
+# symbol = "MATIC"
+# address = "0x0000000000000000000000000000000000000000"
+# 
+# [[evm_networks.tokens]]
+# symbol = "USDC"
+# address = "0x0000000000000000000000000000000000000000"

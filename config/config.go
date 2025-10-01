@@ -6,8 +6,63 @@ import (
 	"strconv"
 
 	"github.com/joho/godotenv"
+	"github.com/pelletier/go-toml/v2"
 )
 
+// EVMToken represents an ERC20 token configuration
+type EVMToken struct {
+	Symbol  string `toml:"symbol"`
+	Address string `toml:"address"`
+}
+
+// EVMNativeToken represents the native token configuration
+type EVMNativeToken struct {
+	Symbol  string `toml:"symbol"`
+	Address string `toml:"address"`
+}
+
+// EVMNetwork represents a single EVM network configuration
+type EVMNetwork struct {
+	Name         string         `toml:"name"`
+	RPCURL       string         `toml:"rpc_url"`
+	ChainID      uint64         `toml:"chain_id"`
+	ContractAddress string      `toml:"contract_address"`
+	PrivateKey   string         `toml:"private_key"`
+	NativeToken  EVMNativeToken `toml:"native_token"`
+	Tokens       []EVMToken     `toml:"tokens"`
+}
+
+// TomlConfig represents the TOML configuration structure
+type TomlConfig struct {
+	Aptos struct {
+		Network   string `toml:"network"`
+		NodeURL   string `toml:"node_url"`
+		FaucetURL string `toml:"faucet_url"`
+	} `toml:"aptos"`
+	
+	Contract struct {
+		Address           string `toml:"address"`
+		USDCMetadataAddress string `toml:"usdc_metadata_address"`
+	} `toml:"contract"`
+	
+	Server struct {
+		Port string `toml:"port"`
+	} `toml:"server"`
+	
+	Gas struct {
+		MaxGasAmount uint64 `toml:"max_gas_amount"`
+		GasUnitPrice uint64 `toml:"gas_unit_price"`
+	} `toml:"gas"`
+	
+	Keys struct {
+		MerchantPrivateKey  string `toml:"merchant_private_key"`
+		PaymasterPrivateKey string `toml:"paymaster_private_key"`
+	} `toml:"keys"`
+	
+	EVMNetworks []EVMNetwork `toml:"evm_networks"`
+}
+
+// Config represents the application configuration (legacy structure for compatibility)
 type Config struct {
 	// Aptos Network Configuration
 	AptosNetwork   string
@@ -19,7 +74,7 @@ type Config struct {
 	USDCContractAddress string // Legacy coin type address
 	USDCMetadataAddress string // FA metadata address
 
-	// EVM Configuration
+	// EVM Configuration (legacy fields for eth-sepolia)
 	EVMRPCURL             string
 	EVMChainID            uint64
 	EVMContractAddress    string
@@ -43,9 +98,75 @@ type Config struct {
 	// Gas Configuration
 	MaxGasAmount uint64
 	GasUnitPrice uint64
+	
+	// EVM Networks (new array-based configuration)
+	EVMNetworks []EVMNetwork
 }
 
 func LoadConfig() *Config {
+	// Try to load TOML config first
+	config := loadTomlConfig()
+	if config != nil {
+		return config
+	}
+	
+	// Fallback to legacy .env loading
+	return loadEnvConfig()
+}
+
+func loadTomlConfig() *Config {
+	// Try to load config.toml file
+	tomlData, err := os.ReadFile("config.toml")
+	if err != nil {
+		return nil // TOML file not found, fallback to .env
+	}
+	
+	var tomlConfig TomlConfig
+	if err := toml.Unmarshal(tomlData, &tomlConfig); err != nil {
+		log.Printf("Error parsing TOML config: %v, falling back to .env", err)
+		return nil
+	}
+	
+	// Convert TOML config to legacy Config struct
+	config := &Config{
+		// Aptos configuration
+		AptosNetwork:        tomlConfig.Aptos.Network,
+		AptosNodeURL:        tomlConfig.Aptos.NodeURL,
+		AptosFaucetURL:      tomlConfig.Aptos.FaucetURL,
+		
+		// Contract configuration
+		ContractAddress:       tomlConfig.Contract.Address,
+		USDCMetadataAddress:   tomlConfig.Contract.USDCMetadataAddress,
+		
+		// Server configuration
+		Port:                  tomlConfig.Server.Port,
+		
+		// Gas configuration
+		MaxGasAmount:          tomlConfig.Gas.MaxGasAmount,
+		GasUnitPrice:          tomlConfig.Gas.GasUnitPrice,
+		
+		// Private keys
+		MerchantPrivateKey:    tomlConfig.Keys.MerchantPrivateKey,
+		PaymasterPrivateKey:   tomlConfig.Keys.PaymasterPrivateKey,
+		
+		// EVM networks (new array-based configuration)
+		EVMNetworks:           tomlConfig.EVMNetworks,
+	}
+	
+    // Legacy EVM fields are intentionally not set to avoid hardcoding network names.
+	
+	// Validate required fields
+	if config.ContractAddress == "" {
+		log.Fatal("Contract address is required in TOML config")
+	}
+	if config.MerchantPrivateKey == "" {
+		log.Fatal("Merchant private key is required in TOML config")
+	}
+	
+	return config
+}
+
+func loadEnvConfig() *Config {
 	// Load .env file if it exists
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using environment variables")
@@ -74,6 +195,8 @@ func LoadConfig() *Config {
 		MaxGasAmount:               getEnvUint64("MAX_GAS_AMOUNT", 100000),
 		GasUnitPrice:               getEnvUint64("GAS_UNIT_PRICE", 100),
 	}
+	
+    // Skip env-to-array conversion to avoid embedding hardcoded network names.
 
 	// Validate required fields
 	if config.ContractAddress == "" {
