@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"strings"
 
@@ -259,6 +260,8 @@ func (c *EVMClient) CompletePayment(
 	}
 	auth.From = c.from
 	auth.Context = ctx
+
+	log.Printf("auth from %s:", auth.From.String())
 
 	tx, err := c.contract.CompletePayment(auth, token, tailBytes, payer, recipient, amount, commitHash)
 	if err != nil {
