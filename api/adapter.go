@@ -6,7 +6,9 @@ import (
 	"log"
 	"math/big"
 	"net/http"
+	"strings"
 	"sync"
+	"tinypay-server/config"
 	"tinypay-server/utils"
 
 	"tinypay-server/client"
@@ -20,16 +22,116 @@ type APIServer struct {
 	evmClient   *client.EVMClient
 	payerLocks  map[string]*sync.Mutex
 	locksMutex  sync.RWMutex
+	config      *config.Config
 }
 
 // NewAPIServer creates a new API server instance
-func NewAPIServer(aptosClient *client.AptosClient, evmClient *client.EVMClient) *APIServer {
+func NewAPIServer(aptosClient *client.AptosClient, evmClient *client.EVMClient, cfg *config.Config) *APIServer {
 	return &APIServer{
 		aptosClient: aptosClient,
 		evmClient:   evmClient,
 		payerLocks:  make(map[string]*sync.Mutex),
 		locksMutex:  sync.RWMutex{},
+		config:      cfg,
 	}
+}
+
+// isNetworkAvailable checks if a network is properly configured and available
+func (s *APIServer) isNetworkAvailable(network string) (bool, error) {
+	switch network {
+	case "aptos-testnet":
+		if s.aptosClient == nil {
+			return false, fmt.Errorf("Aptos client not initialized")
+		}
+		// Check basic configuration
+		if s.config.ContractAddress == "" {
+			return false, fmt.Errorf("Aptos contract address not configured")
+		}
+		return true, nil
+	case "eth-sepolia":
+		if s.evmClient == nil {
+			return false, fmt.Errorf("EVM client not initialized")
+		}
+		// Check basic configuration
+		if strings.TrimSpace(s.config.EVMRPCURL) == "" {
+			return false, fmt.Errorf("Ethereum Sepolia RPC URL not configured")
+		}
+		if strings.TrimSpace(s.config.EVMContractAddress) == "" {
+			return false, fmt.Errorf("Ethereum Sepolia contract address not configured")
+		}
+		return true, nil
+	case "celo-sepolia":
+		// Check Celo Sepolia specific configuration
+		if strings.TrimSpace(s.config.CeloSepoliaRPCURL) == "" {
+			return false, fmt.Errorf("Celo Sepolia RPC URL not configured")
+		}
+		if strings.TrimSpace(s.config.CeloSepoliaContractAddress) == "" {
+			return false, fmt.Errorf("Celo Sepolia contract address not configured")
+		}
+		if strings.TrimSpace(s.config.CeloSepoliaPrivateKey) == "" {
+			return false, fmt.Errorf("Celo Sepolia private key not configured")
+		}
+		return true, nil
+	default:
+		return false, fmt.Errorf("unsupported network: %s", network)
+	}
+}
+
+// validateNetworkAndCurrency performs comprehensive network and currency validation
+func (s *APIServer) validateNetworkAndCurrency(network, currency string) error {
+	// Use the comprehensive validation from utils package
+	if err := utils.ValidateNetworkCurrencyCombination(network, currency); err != nil {
+		return err
+	}
+
+	// Check if network is available
+	available, err := s.isNetworkAvailable(network)
+	if !available {
+		log.Printf("Network %s is not available: %v", network, err)
+		return fmt.Errorf("network %s is not available: %w", network, err)
+	}
+
+	// Additional network-specific configuration validation
+	switch strings.ToLower(network) {
+	case "celo-sepolia":
+		if currency == "USDC" && strings.TrimSpace(s.config.CeloSepoliaUSDCAddress) == "" {
+			return fmt.Errorf("Celo Sepolia USDC address not configured")
+		}
+	case "eth-sepolia":
+		if currency == "USDC" && strings.TrimSpace(s.config.ETHSepoliaUSDCAddress) == "" {
+			return fmt.Errorf("Ethereum Sepolia USDC address not configured")
+		}
+	case "aptos-testnet":
+		if currency == "USDC" && strings.TrimSpace(s.config.USDCMetadataAddress) == "" {
+			return fmt.Errorf("Aptos USDC metadata address not configured")
+		}
+	}
+
+	return nil
+}
+
+// getDetailedValidationError returns a detailed error message for validation failures
+func (s *APIServer) getDetailedValidationError(network, currency string) map[string]interface{} {
+	matrix := utils.NewNetworkCurrencyValidationMatrix()
+
+	data := map[string]interface{}{
+		"error":              "Invalid network-currency combination",
+		"provided_network":   network,
+		"provided_currency":  currency,
+		"supported_networks": matrix.GetSupportedNetworks(),
+	}
+
+	// Add supported currencies for the provided network if it exists
+	if supportedCurrencies := matrix.GetSupportedCurrenciesForNetwork(network); len(supportedCurrencies) > 0 {
+		data["supported_currencies_for_network"] = supportedCurrencies
+	}
+
+	// Add suggestion for default currency if network is valid
+	if defaultCurrency := utils.GetDefaultCurrencyForNetwork(network); defaultCurrency != "" {
+		data["suggested_currency"] = defaultCurrency
+	}
+
+	return data
 }
 
 // getPayerLock returns the mutex for a specific payer address, creating one if it doesn't exist
@@ -120,18 +222,49 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 		network = string(*req.Network)
 	}
 
-	// Handle currency type - default to APT for aptos-testnet and ETH for eth-sepolia if not specified
+	// Handle currency type - default based on network if not specified
 	currency := "APT"
 	if req.Currency != nil {
 		currency = string(*req.Currency)
-	} else if network == "eth-sepolia" {
-		currency = "ETH"
+	} else {
+		switch network {
+		case "eth-sepolia":
+			currency = "ETH"
+		case "celo-sepolia":
+			currency = "CELO"
+		default:
+			currency = "APT"
+		}
 	}
 
-	if (network == "aptos-testnet" && currency == "ETH") || (network == "eth-sepolia" && currency == "APT") {
-		log.Printf("Invalid currency %s for network %s", currency, network)
-		response := CreateApiResponseWithNullData(CodeInvalidCurrency)
-		c.JSON(http.StatusBadRequest, response)
+	// Validate network and currency combination with enhanced error handling
+	if err := s.validateNetworkAndCurrency(network, currency); err != nil {
+		log.Printf("Network/currency validation failed: %v", err)
+
+		// Determine appropriate error code based on the error type
+		errorMsg := err.Error()
+		var errorCode int
+		var responseData map[string]interface{}
+
+		if strings.Contains(errorMsg, "not available") || strings.Contains(errorMsg, "not configured") {
+			errorCode = CodeNetworkUnavailable
+		} else if strings.Contains(errorMsg, "unsupported network") {
+			errorCode = CodeInvalidOpt
+			responseData = s.getDetailedValidationError(network, currency)
+		} else if strings.Contains(errorMsg, "not supported on network") {
+			errorCode = CodeInvalidNetworkCurrency
+			responseData = s.getDetailedValidationError(network, currency)
+		} else {
+			errorCode = CodeNetworkConfigError
+		}
+
+		if responseData != nil {
+			response := CreateApiResponseWithMap(errorCode, responseData)
+			c.JSON(http.StatusBadRequest, response)
+		} else {
+			response := CreateApiResponseWithNullData(errorCode)
+			c.JSON(http.StatusBadRequest, response)
+		}
 		return
 	}
 
@@ -147,13 +280,13 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, response)
 			return
 		}
-	case "eth-sepolia":
-		// For EVM, we'll use the currency directly as the token identifier
+	case "eth-sepolia", "celo-sepolia":
+		// For EVM networks, we'll use the currency directly as the token identifier
 		coinType = currency
 		// Validate that we have an EVM client
 		if s.evmClient == nil {
-			log.Printf("EVM client not initialized")
-			response := CreateApiResponseWithNullData(CodeInvalidOpt)
+			log.Printf("EVM client not initialized for network %s", network)
+			response := CreateApiResponseWithNullData(CodeNetworkUnavailable)
 			c.JSON(http.StatusInternalServerError, response)
 			return
 		}
@@ -213,8 +346,8 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, response)
 			return
 		}
-	case "eth-sepolia":
-		// For EVM, we need to convert the amount to *big.Int
+	case "eth-sepolia", "celo-sepolia":
+		// For EVM networks, we need to convert the amount to *big.Int
 		amountBig := new(big.Int).SetUint64(amount)
 
 		// For EVM, we'll use a fixed commit hash for now (32 bytes of zeros)
@@ -222,26 +355,53 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 		commitHash := "0x0000000000000000000000000000000000000000000000000000000000000000"
 
 		var tokenAddress string
-		if currency == "ETH" {
+		switch currency {
+		case "USDC":
+			switch network {
+			case "eth-sepolia":
+				tokenAddress = s.evmClient.GetConfig().ETHSepoliaUSDCAddress
+			case "celo-sepolia":
+				tokenAddress = s.evmClient.GetConfig().CeloSepoliaUSDCAddress
+			}
+		case "CELO":
+			// CELO native token uses zero address
 			tokenAddress = "0x0000000000000000000000000000000000000000"
-		} else if currency == "USDC" {
-			tokenAddress = s.evmClient.GetConfig().EVMTestUSDCAddress
-		} else {
+		default:
+			// ETH and other native tokens use zero address
+			tokenAddress = "0x0000000000000000000000000000000000000000"
+		}
+
+		if tokenAddress == "" {
 			log.Printf("Invalid currency %s for network %s", currency, network)
-			response := CreateApiResponseWithNullData(CodeInvalidCurrency)
+			response := CreateApiResponseWithNullData(CodeInvalidNetworkCurrency)
 			c.JSON(http.StatusBadRequest, response)
 			return
 		}
 
-		// Call the EVM client's CompletePayment method
+		// Call the EVM client's CompletePayment method with enhanced error handling
 		tx, err := s.evmClient.CompletePayment(context.Background(), tokenAddress, req.PayerAddr, req.PayeeAddr, amountBig, req.Opt, commitHash)
 		if err != nil {
-			log.Printf("Failed to complete EVM payment: %v", err)
-			// todo:
-			// Randomly return one of the validation error codes (2000-2003)
-			errorCodes := []int{CodeAmountMustBePositive, CodeAmountExceedsLimit, CodeInsufficientBalance, CodeInvalidOpt}
-			randomCode := errorCodes[len(err.Error())%len(errorCodes)]
-			response := CreateApiResponseWithNullData(randomCode)
+			log.Printf("Failed to complete EVM payment on %s: %v", network, err)
+
+			// Enhanced error handling based on error type
+			errorMsg := strings.ToLower(err.Error())
+			var errorCode int
+
+			if strings.Contains(errorMsg, "insufficient") || strings.Contains(errorMsg, "balance") {
+				errorCode = CodeInsufficientBalance
+			} else if strings.Contains(errorMsg, "amount") && (strings.Contains(errorMsg, "invalid") || strings.Contains(errorMsg, "zero")) {
+				errorCode = CodeAmountMustBePositive
+			} else if strings.Contains(errorMsg, "limit") || strings.Contains(errorMsg, "exceed") {
+				errorCode = CodeAmountExceedsLimit
+			} else if strings.Contains(errorMsg, "connection") || strings.Contains(errorMsg, "rpc") || strings.Contains(errorMsg, "network") {
+				errorCode = CodeNetworkConnectionError
+			} else if strings.Contains(errorMsg, "config") || strings.Contains(errorMsg, "address") {
+				errorCode = CodeNetworkConfigError
+			} else {
+				errorCode = CodeInvalidOpt
+			}
+
+			response := CreateApiResponseWithNullData(errorCode)
 			c.JSON(http.StatusBadRequest, response)
 			return
 		}
@@ -315,16 +475,40 @@ func (s *APIServer) GetTransactionStatus(c *gin.Context, transactionHash string,
 			response := CreateApiResponseWithMap(CodeTransactionConfirmed, data)
 			c.JSON(http.StatusOK, response)
 		}
-	case "eth-sepolia":
+	case "eth-sepolia", "celo-sepolia":
+		// Check network availability first
+		if available, err := s.isNetworkAvailable(network); !available {
+			log.Printf("Network %s not available for transaction status query: %v", network, err)
+			response := CreateApiResponseWithNullData(CodeNetworkUnavailable)
+			c.JSON(http.StatusServiceUnavailable, response)
+			return
+		}
+
 		if s.evmClient == nil {
-			response := CreateApiResponseWithNullData(CodeInvalidOpt)
+			log.Printf("EVM client not initialized for network %s", network)
+			response := CreateApiResponseWithNullData(CodeNetworkUnavailable)
 			c.JSON(http.StatusInternalServerError, response)
 			return
 		}
-		// Fetch EVM transaction details
+
+		// Fetch EVM transaction details with enhanced error handling
 		txInfo, err := s.evmClient.GetTransactionDetails(c.Request.Context(), transactionHash)
 		if err != nil {
-			response := CreateApiResponseWithNullData(CodeTransactionNotFound)
+			log.Printf("Failed to get transaction details for %s on %s: %v", transactionHash, network, err)
+
+			// Enhanced error handling based on error type
+			errorMsg := strings.ToLower(err.Error())
+			var errorCode int
+
+			if strings.Contains(errorMsg, "not found") {
+				errorCode = CodeTransactionNotFound
+			} else if strings.Contains(errorMsg, "connection") || strings.Contains(errorMsg, "rpc") || strings.Contains(errorMsg, "network") {
+				errorCode = CodeNetworkConnectionError
+			} else {
+				errorCode = CodeTransactionNotFound
+			}
+
+			response := CreateApiResponseWithNullData(errorCode)
 			c.JSON(http.StatusNotFound, response)
 			return
 		}
@@ -338,16 +522,30 @@ func (s *APIServer) GetTransactionStatus(c *gin.Context, transactionHash string,
 			return
 		}
 		if txInfo.Success {
-			// Determine currency from token address
-			currency := "ETH" // Default to ETH
+			// Determine currency from token address based on network
+			var currency string
 			if txInfo.TokenAddress != "" && txInfo.TokenAddress != "0x0000000000000000000000000000000000000000" {
-				// Try to get currency from token address
-				currency = utils.GetCurrencyFromEVMTokenAddress(s.evmClient.GetConfig(), txInfo.TokenAddress)
+				// Try to get currency from token address using network-specific mapping
+				currency = utils.GetCurrencyFromEVMTokenAddressByNetwork(s.evmClient.GetConfig(), txInfo.TokenAddress, network)
 				if currency == "UNKNOWN" {
-					currency = "ETH" // Fallback to ETH if mapping fails
+					// Fallback to network's native currency if mapping fails
+					switch network {
+					case "celo-sepolia":
+						currency = "CELO"
+					default:
+						currency = "ETH"
+					}
+				}
+			} else {
+				// Zero address means native token
+				switch network {
+				case "celo-sepolia":
+					currency = "CELO"
+				default:
+					currency = "ETH"
 				}
 			}
-			
+
 			data := map[string]interface{}{
 				"status":          "confirmed",
 				"received_amount": txInfo.Amount,
@@ -407,16 +605,39 @@ func (s *APIServer) GetUserLimits(c *gin.Context, userAddress string, params Get
 		}
 		response := CreateApiResponseWithMap(CodeServerHealthy, data)
 		c.JSON(http.StatusOK, response)
-	case "eth-sepolia":
+	case "eth-sepolia", "celo-sepolia":
+		// Check network availability first
+		if available, err := s.isNetworkAvailable(network); !available {
+			log.Printf("Network %s not available for user limits query: %v", network, err)
+			response := CreateApiResponseWithNullData(CodeNetworkUnavailable)
+			c.JSON(http.StatusServiceUnavailable, response)
+			return
+		}
+
 		if s.evmClient == nil {
-			response := CreateApiResponseWithNullData(CodeInvalidOpt)
+			log.Printf("EVM client not initialized for network %s", network)
+			response := CreateApiResponseWithNullData(CodeNetworkUnavailable)
 			c.JSON(http.StatusInternalServerError, response)
 			return
 		}
+
 		userLimits, err := s.evmClient.GetUserLimits(c.Request.Context(), userAddress)
 		if err != nil {
-			log.Printf("Failed to get EVM user limits: %v", err)
-			response := CreateApiResponseWithNullData(CodeInvalidOpt)
+			log.Printf("Failed to get EVM user limits for network %s: %v", network, err)
+
+			// Enhanced error handling based on error type
+			errorMsg := strings.ToLower(err.Error())
+			var errorCode int
+
+			if strings.Contains(errorMsg, "connection") || strings.Contains(errorMsg, "rpc") || strings.Contains(errorMsg, "network") {
+				errorCode = CodeNetworkConnectionError
+			} else if strings.Contains(errorMsg, "config") || strings.Contains(errorMsg, "address") {
+				errorCode = CodeNetworkConfigError
+			} else {
+				errorCode = CodeInvalidOpt
+			}
+
+			response := CreateApiResponseWithNullData(errorCode)
 			c.JSON(http.StatusBadRequest, response)
 			return
 		}

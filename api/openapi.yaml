@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: TinyPay API
   description: |
-    基于 RESTful 规范的支付接口，支持 Aptos 区块链交易处理。
+    基于 RESTful 规范的支付接口，支持多区块链网络（Aptos、Ethereum、Celo）交易处理。
 
     ## 响应格式说明
     所有接口使用统一的响应格式：
@@ -94,6 +94,14 @@ paths:
                   amount: 1000000
                   currency: "ETH"
                   network: "eth-sepolia"
+              celo_payment:
+                summary: Celo 支付示例
+                value:
+                  payer_addr: "0xEBcddFf6ECD3c3Ddc542a5DCB109ADd04b1eB7e9"
+                  payee_addr: "0xEBcddFf6ECD3c3Ddc542a5DCB109ADd04b1eB7e9"
+                  amount: 1000000
+                  currency: "CELO"
+                  network: "celo-sepolia"
       responses:
         '200':
           description: 交易创建成功
@@ -150,7 +158,7 @@ paths:
           description: 目标网络
           schema:
             type: string
-            enum: ["aptos-testnet", "eth-sepolia"]
+            enum: ["aptos-testnet", "eth-sepolia", "celo-sepolia"]
             default: "aptos-testnet"
           example: "eth-sepolia"
 
@@ -171,7 +179,7 @@ paths:
                       network: "aptos-testnet"
                 confirmed:
                   summary: 交易确认成功
-                  description: currency 字段根据网络而变化：APT(aptos-testnet) 或 ETH(eth-sepolia)
+                  description: currency 字段根据网络而变化：APT/USDC(aptos-testnet)、ETH/USDC(eth-sepolia) 或 CELO/USDC(celo-sepolia)
                   value:
                     code: 1003
                     data:
@@ -179,6 +187,15 @@ paths:
                       received_amount: 1000000
                       currency: "APT"
                       network: "aptos-testnet"
+                confirmed_celo:
+                  summary: Celo 交易确认成功
+                  value:
+                    code: 1003
+                    data:
+                      status: "confirmed"
+                      received_amount: 1000000
+                      currency: "CELO"
+                      network: "celo-sepolia"
         '404':
           description: 交易不存在
           content:
@@ -214,7 +231,7 @@ paths:
           description: 目标网络
           schema:
             type: string
-            enum: ["aptos-testnet", "eth-sepolia"]
+            enum: ["aptos-testnet", "eth-sepolia", "celo-sepolia"]
             default: "aptos-testnet"
           example: "eth-sepolia"
       responses:
@@ -227,7 +244,7 @@ paths:
               examples:
                 success:
                   summary: 查询成功
-                  description: network 字段根据请求参数而变化：aptos-testnet 或 eth-sepolia
+                  description: network 字段根据请求参数而变化：aptos-testnet、eth-sepolia 或 celo-sepolia
                   value:
                     code: 1000
                     data:
@@ -236,6 +253,16 @@ paths:
                         tail_update_count: 5
                         max_tail_updates: 10
                       network: "aptos-testnet"
+                celo_limits:
+                  summary: Celo 网络查询成功
+                  value:
+                    code: 1000
+                    data:
+                      user_limits:
+                        payment_limit: 1000000
+                        tail_update_count: 3
+                        max_tail_updates: 10
+                      network: "celo-sepolia"
         '400':
           description: 请求错误
           content:
@@ -297,13 +324,13 @@ components:
           type: string
           description: 货币种类
           default: "APT"
-          enum: ["APT", "USDC", "ETH"]
+          enum: ["APT", "USDC", "ETH", "CELO"]
           example: "APT"
         network:
           type: string
           description: 目标网络
           default: "aptos-testnet"
-          enum: ["aptos-testnet", "eth-sepolia"]
+          enum: ["aptos-testnet", "eth-sepolia", "celo-sepolia"]
           example: "eth-sepolia"
 
 tags:

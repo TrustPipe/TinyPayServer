@@ -20,8 +20,8 @@
   "otp": "string",         // OPT hex格式 (仅 Aptos 网络需要)
   "payee_addr": "string",  // 收款地址 hex格式
   "amount": number,        // 金额 uint类型
-  "currency": "string",    // 货币种类 (APT/ETH/USDC)
-  "network": "string"      // 目标网络 (aptos-testnet/eth-sepolia，默认 aptos-testnet)
+  "currency": "string",    // 货币种类 (APT/ETH/CELO/USDC)
+  "network": "string"      // 目标网络 (aptos-testnet/eth-sepolia/celo-sepolia，默认 aptos-testnet)
 }
 ```
 
@@ -87,6 +87,7 @@
 - `network`: 目标网络 (可选，默认 `aptos-testnet`)
   - `aptos-testnet`: Aptos 测试网
   - `eth-sepolia`: Ethereum Sepolia 测试网
+  - `celo-sepolia`: Celo Sepolia 测试网
 
 #### 响应参数
 
@@ -159,6 +160,7 @@
 - `network`: 目标网络 (可选，默认 `aptos-testnet`)
   - `aptos-testnet`: Aptos 测试网
   - `eth-sepolia`: Ethereum Sepolia 测试网
+  - `celo-sepolia`: Celo Sepolia 测试网
 
 #### 响应参数
 
@@ -219,9 +221,15 @@
 - 交易哈希格式：0x + 64位十六进制
 
 ### Ethereum 网络 (eth-sepolia)
-- 支持货币：ETH
+- 支持货币：ETH, USDC
 - 无需 OPT 参数
 - 交易哈希格式：0x + 64位十六进制
+
+### Celo 网络 (celo-sepolia)
+- 支持货币：CELO, USDC
+- 无需 OPT 参数
+- 交易哈希格式：0x + 64位十六进制
+- 网络特性：EVM 兼容，支持原生 CELO 代币和 USDC ERC-20 代币
 
 ## 示例请求
 
@@ -252,6 +260,32 @@ curl -X POST "http://localhost:9090/api/payments" \
   }'
 ```
 
+### 创建 Celo 支付 (CELO 原生代币)
+```bash
+curl -X POST "http://localhost:9090/api/payments" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payer_addr": "0x1234...",
+    "payee_addr": "0x5678...",
+    "amount": 1000000,
+    "currency": "CELO",
+    "network": "celo-sepolia"
+  }'
+```
+
+### 创建 Celo 支付 (USDC 代币)
+```bash
+curl -X POST "http://localhost:9090/api/payments" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payer_addr": "0x1234...",
+    "payee_addr": "0x5678...",
+    "amount": 1000000,
+    "currency": "USDC",
+    "network": "celo-sepolia"
+  }'
+```
+
 ### 查询交易状态
 ```bash
 # Aptos 网络
@@ -259,6 +293,9 @@ curl "http://localhost:9090/api/payments/0x1234...?network=aptos-testnet"
 
 # Ethereum 网络
 curl "http://localhost:9090/api/payments/0x1234...?network=eth-sepolia"
+
+# Celo 网络
+curl "http://localhost:9090/api/payments/0x1234...?network=celo-sepolia"
 ```
 
 ### 查询用户限制
@@ -268,4 +305,7 @@ curl "http://localhost:9090/api/users/0x1234.../limits?network=aptos-testnet"
 
 # Ethereum 网络
 curl "http://localhost:9090/api/users/0x1234.../limits?network=eth-sepolia"
+
+# Celo 网络
+curl "http://localhost:9090/api/users/0x1234.../limits?network=celo-sepolia"
 ```

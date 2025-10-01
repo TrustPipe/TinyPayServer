@@ -27,50 +27,165 @@ type EVMClient struct {
 	privateKey *ecdsa.PrivateKey
 	chainID    *big.Int
 	from       common.Address
+	network    string // Track which network this client is configured for
 }
 
-// NewEVMClient creates a new EVM client using configuration defaults.
-func NewEVMClient(cfg *config.Config) (*EVMClient, error) {
+// EVMNetworkConfig holds network-specific configuration parameters
+type EVMNetworkConfig struct {
+	RPCURL          string
+	ChainID         uint64
+	ContractAddress string
+	PrivateKey      string
+	USDCAddress     string
+	Network         string
+}
+
+// getNetworkConfig extracts network-specific configuration based on network type
+func getNetworkConfig(cfg *config.Config, network string) (*EVMNetworkConfig, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
-	if strings.TrimSpace(cfg.EVMRPCURL) == "" {
-		return nil, errors.New("EVM_RPC_URL is required")
+
+	switch network {
+	case "eth-sepolia":
+		return &EVMNetworkConfig{
+			RPCURL:          cfg.EVMRPCURL,
+			ChainID:         cfg.EVMChainID,
+			ContractAddress: cfg.EVMContractAddress,
+			PrivateKey:      cfg.EVMPrivateKey,
+			USDCAddress:     cfg.ETHSepoliaUSDCAddress,
+			Network:         "eth-sepolia",
+		}, nil
+	case "celo-sepolia":
+		return &EVMNetworkConfig{
+			RPCURL:          cfg.CeloSepoliaRPCURL,
+			ChainID:         cfg.CeloSepoliaChainID,
+			ContractAddress: cfg.CeloSepoliaContractAddress,
+			PrivateKey:      cfg.CeloSepoliaPrivateKey,
+			USDCAddress:     cfg.CeloSepoliaUSDCAddress,
+			Network:         "celo-sepolia",
+		}, nil
+	default:
+		return nil, fmt.Errorf("unsupported EVM network: %s", network)
 	}
-	if strings.TrimSpace(cfg.EVMContractAddress) == "" {
-		return nil, errors.New("EVM_CONTRACT_ADDRESS is required")
-	}
-	if strings.TrimSpace(cfg.EVMPrivateKey) == "" {
-		return nil, errors.New("EVM_PRIVATE_KEY is required")
-	}
-	if cfg.EVMChainID == 0 {
-		return nil, errors.New("EVM_CHAIN_ID must be greater than 0")
+}
+
+// NewEVMClient creates a new EVM client using configuration defaults.
+// Deprecated: Use NewEVMClientForNetwork instead for network-specific configuration.
+func NewEVMClient(cfg *config.Config) (*EVMClient, error) {
+	// Maintain backward compatibility by defaulting to eth-sepolia
+	return NewEVMClientForNetwork(cfg, "eth-sepolia")
+}
+
+// NewCeloSepoliaClient creates a new EVM client specifically configured for Celo Sepolia.
+func NewCeloSepoliaClient(cfg *config.Config) (*EVMClient, error) {
+	return NewEVMClientForNetwork(cfg, "celo-sepolia")
+}
+
+// ValidateCeloSepoliaConfig validates Celo Sepolia specific configuration parameters.
+func ValidateCeloSepoliaConfig(cfg *config.Config) error {
+	if cfg == nil {
+		return errors.New("config is required")
 	}
 
-	client, err := ethclient.Dial(cfg.EVMRPCURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to EVM RPC: %w", err)
+	var validationErrors []string
+
+	if strings.TrimSpace(cfg.CeloSepoliaRPCURL) == "" {
+		validationErrors = append(validationErrors, "CELO_SEPOLIA_RPC_URL is required")
+	}
+	if strings.TrimSpace(cfg.CeloSepoliaContractAddress) == "" {
+		validationErrors = append(validationErrors, "CELO_SEPOLIA_CONTRACT_ADDRESS is required")
+	}
+	if strings.TrimSpace(cfg.CeloSepoliaPrivateKey) == "" {
+		validationErrors = append(validationErrors, "CELO_SEPOLIA_PRIVATE_KEY is required")
+	}
+	if cfg.CeloSepoliaChainID == 0 {
+		validationErrors = append(validationErrors, "CELO_SEPOLIA_CHAIN_ID must be greater than 0")
+	}
+	if strings.TrimSpace(cfg.CeloSepoliaUSDCAddress) == "" {
+		validationErrors = append(validationErrors, "CELO_SEPOLIA_USDC_ADDRESS is required for USDC payments")
 	}
 
-	privateKey, err := crypto.HexToECDSA(strings.TrimPrefix(cfg.EVMPrivateKey, "0x"))
+	if len(validationErrors) > 0 {
+		return fmt.Errorf("Celo Sepolia configuration validation failed: %s", strings.Join(validationErrors, "; "))
+	}
+
+	return nil
+}
+
+// IsCeloSepoliaConfigured checks if Celo Sepolia is properly configured.
+func IsCeloSepoliaConfigured(cfg *config.Config) bool {
+	return ValidateCeloSepoliaConfig(cfg) == nil
+}
+
+// TryNewCeloSepoliaClient attempts to create a Celo Sepolia client with graceful error handling.
+// Returns nil and logs warnings if configuration is incomplete, rather than failing.
+func TryNewCeloSepoliaClient(cfg *config.Config) (*EVMClient, error) {
+	if !IsCeloSepoliaConfigured(cfg) {
+		return nil, fmt.Errorf("Celo Sepolia is not properly configured")
+	}
+
+	client, err := NewCeloSepoliaClient(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("invalid EVM private key: %w", err)
+		return nil, fmt.Errorf("failed to initialize Celo Sepolia client: %w", err)
+	}
+
+	return client, nil
+}
+
+// NewEVMClientForNetwork creates a new EVM client for a specific network.
+func NewEVMClientForNetwork(cfg *config.Config, network string) (*EVMClient, error) {
+	// Validate network-specific configuration before proceeding
+	if network == "celo-sepolia" {
+		if err := ValidateCeloSepoliaConfig(cfg); err != nil {
+			return nil, fmt.Errorf("Celo Sepolia configuration error: %w", err)
+		}
+	}
+
+	// Get network-specific configuration
+	netCfg, err := getNetworkConfig(cfg, network)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate network-specific configuration
+	if strings.TrimSpace(netCfg.RPCURL) == "" {
+		return nil, fmt.Errorf("%s RPC URL is required", strings.ToUpper(strings.Replace(network, "-", "_", -1)))
+	}
+	if strings.TrimSpace(netCfg.ContractAddress) == "" {
+		return nil, fmt.Errorf("%s contract address is required", strings.ToUpper(strings.Replace(network, "-", "_", -1)))
+	}
+	if strings.TrimSpace(netCfg.PrivateKey) == "" {
+		return nil, fmt.Errorf("%s private key is required", strings.ToUpper(strings.Replace(network, "-", "_", -1)))
+	}
+	if netCfg.ChainID == 0 {
+		return nil, fmt.Errorf("%s chain ID must be greater than 0", strings.ToUpper(strings.Replace(network, "-", "_", -1)))
+	}
+
+	client, err := ethclient.Dial(netCfg.RPCURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to %s RPC: %w", network, err)
+	}
+
+	privateKey, err := crypto.HexToECDSA(strings.TrimPrefix(netCfg.PrivateKey, "0x"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid %s private key: %w", network, err)
 	}
 
 	publicKey := privateKey.Public()
 	ecdsaPubKey, ok := publicKey.(*ecdsa.PublicKey)
 	if !ok {
-		return nil, errors.New("failed to parse EVM public key")
+		return nil, fmt.Errorf("failed to parse %s public key", network)
 	}
 
 	fromAddress := crypto.PubkeyToAddress(*ecdsaPubKey)
 
-	chainID := big.NewInt(int64(cfg.EVMChainID))
+	chainID := big.NewInt(int64(netCfg.ChainID))
 
-	contractAddress := common.HexToAddress(ensureHexPrefix(cfg.EVMContractAddress))
+	contractAddress := common.HexToAddress(ensureHexPrefix(netCfg.ContractAddress))
 	contract, err := tinypaybindings.NewTinypay(contractAddress, client)
 	if err != nil {
-		return nil, fmt.Errorf("failed to bind Tinypay contract: %w", err)
+		return nil, fmt.Errorf("failed to bind Tinypay contract for %s: %w", network, err)
 	}
 
 	return &EVMClient{
@@ -80,6 +195,7 @@ func NewEVMClient(cfg *config.Config) (*EVMClient, error) {
 		privateKey: privateKey,
 		chainID:    chainID,
 		from:       fromAddress,
+		network:    network,
 	}, nil
 }
 
@@ -94,6 +210,11 @@ func (c *EVMClient) Close() error {
 // GetConfig returns the configuration used by this client
 func (c *EVMClient) GetConfig() *config.Config {
 	return c.cfg
+}
+
+// GetNetwork returns the network this client is configured for
+func (c *EVMClient) GetNetwork() string {
+	return c.network
 }
 
 // CompletePayment executes the TinyPay completePayment function on the EVM contract.
@@ -192,19 +313,31 @@ func (c *EVMClient) GetTransactionDetails(ctx context.Context, txHashHex string)
 			if evt.Amount != nil {
 				info.Amount = evt.Amount.Uint64()
 			}
-			// CoinType: zero address means native token (ETH)
-		if (evt.Token == common.Address{}) {
-			info.CoinType = "ETH"
-			info.TokenAddress = ""
-		} else {
-			info.TokenAddress = evt.Token.Hex()
-			// Map token address to currency using utility function
-			if currency := utils.GetCurrencyFromEVMTokenAddress(c.cfg, evt.Token.Hex()); currency != "" {
-				info.CoinType = currency
+			// CoinType: zero address means native token
+			if (evt.Token == common.Address{}) {
+				// Set native token based on network
+				switch c.network {
+				case "celo-sepolia":
+					info.CoinType = "CELO"
+				default:
+					info.CoinType = "ETH"
+				}
+				info.TokenAddress = ""
 			} else {
-				info.CoinType = "ETH" // fallback
+				info.TokenAddress = evt.Token.Hex()
+				// Map token address to currency using network-specific utility function
+				if currency := utils.GetCurrencyFromEVMTokenAddressByNetwork(c.cfg, evt.Token.Hex(), c.network); currency != "" {
+					info.CoinType = currency
+				} else {
+					// Fallback to native token based on network
+					switch c.network {
+					case "celo-sepolia":
+						info.CoinType = "CELO"
+					default:
+						info.CoinType = "ETH"
+					}
+				}
 			}
-		}
 			break
 		}
 	}

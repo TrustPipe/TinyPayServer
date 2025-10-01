@@ -36,7 +36,7 @@ func main() {
 	}
 
 	// Initialize OpenAPI server
-	apiServer := api.NewAPIServer(aptosClient, evmClient)
+	apiServer := api.NewAPIServer(aptosClient, evmClient, cfg)
 
 	// Setup Gin router
 	router := gin.Default()

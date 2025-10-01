@@ -85,14 +85,50 @@
 
 ### 环境变量
 
+#### 基础配置
+
 | 变量名 | 描述 | 默认值 |
 |--------|------|--------|
 | `PORT` | 服务端口 | `9090` |
-| `APTOS_NETWORK` | Aptos 网络 | `devnet` |
-| `APTOS_NODE_URL` | Aptos 节点 URL | `https://fullnode.devnet.aptoslabs.com/v1` |
-| `CONTRACT_ADDRESS` | 合约地址 | 必填 |
+
+#### Aptos 网络配置
+
+| 变量名 | 描述 | 默认值 |
+|--------|------|--------|
+| `APTOS_NETWORK` | Aptos 网络 | `testnet` |
+| `APTOS_NODE_URL` | Aptos 节点 URL | `https://fullnode.testnet.aptoslabs.com/v1` |
+| `APTOS_FAUCET_URL` | Aptos 水龙头 URL | `https://faucet.testnet.aptoslabs.com` |
+| `CONTRACT_ADDRESS` | TinyPay 合约地址 | 必填 |
+| `USDC_METADATA_ADDRESS` | USDC 元数据地址 | 必填 |
 | `MERCHANT_PRIVATE_KEY` | 商户私钥 | 必填 |
 | `PAYMASTER_PRIVATE_KEY` | 付费主私钥 | 可选 |
+
+#### Ethereum Sepolia 网络配置
+
+| 变量名 | 描述 | 默认值 |
+|--------|------|--------|
+| `ETH_SEPOLIA_RPC_URL` | Ethereum Sepolia RPC URL | 必填 |
+| `ETH_SEPOLIA_CHAIN_ID` | Ethereum Sepolia 链 ID | `11155111` |
+| `ETH_SEPOLIA_CONTRACT_ADDRESS` | TinyPay 合约地址 | 必填 |
+| `ETH_SEPOLIA_PRIVATE_KEY` | 私钥 | 必填 |
+| `ETH_SEPOLIA_USDC_ADDRESS` | USDC 代币地址 | 必填 |
+
+#### Celo Sepolia 网络配置
+
+| 变量名 | 描述 | 默认值 |
+|--------|------|--------|
+| `CELO_SEPOLIA_RPC_URL` | Celo Sepolia RPC URL | `https://alfajores-forno.celo-testnet.org` |
+| `CELO_SEPOLIA_CHAIN_ID` | Celo Sepolia 链 ID | `44787` |
+| `CELO_SEPOLIA_CONTRACT_ADDRESS` | TinyPay 合约地址 | 必填 |
+| `CELO_SEPOLIA_PRIVATE_KEY` | 私钥 | 必填 |
+| `CELO_SEPOLIA_USDC_ADDRESS` | USDC 代币地址 | `0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B` |
+
+#### 可选配置
+
+| 变量名 | 描述 | 默认值 |
+|--------|------|--------|
+| `MAX_GAS_AMOUNT` | 最大 Gas 数量 | `2000` |
+| `GAS_UNIT_PRICE` | Gas 单价 | `100` |
 
 ### Docker 服务
 

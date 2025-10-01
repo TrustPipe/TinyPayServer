@@ -9,13 +9,18 @@ const (
 	CodeTransactionConfirmed = 1003 // 交易确认成功
 
 	// 错误状态码 (2000-2999)
-	CodeAmountMustBePositive = 2000 // 金额必须大于0
-	CodeAmountExceedsLimit   = 2001 // 金额超出限制
-	CodeInsufficientBalance  = 2002 // 余额不足
-	CodeInvalidOpt           = 2003 // OPT 不正确
-	CodeMissingFields        = 2004 // 缺少必需字段
-	CodeTransactionNotFound  = 2005 // 交易不存在
-	CodeInvalidCurrency      = 2006 // 无效的货币种类
+	CodeAmountMustBePositive   = 2000 // 金额必须大于0
+	CodeAmountExceedsLimit     = 2001 // 金额超出限制
+	CodeInsufficientBalance    = 2002 // 余额不足
+	CodeInvalidOpt             = 2003 // OPT 不正确
+	CodeMissingFields          = 2004 // 缺少必需字段
+	CodeTransactionNotFound    = 2005 // 交易不存在
+	CodeInvalidNetworkCurrency = 2006 // 无效的货币种类
+
+	// 网络特定错误状态码 (2100-2199)
+	CodeNetworkUnavailable     = 2100 // 网络不可用
+	CodeNetworkConfigError     = 2101 // 网络配置错误
+	CodeNetworkConnectionError = 2102 // 网络连接错误
 )
 
 // CreateApiResponse 创建统一的API响应
