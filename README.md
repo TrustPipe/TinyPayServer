@@ -1,71 +1,89 @@
 # TinyPayServer
 
-一个基于 Aptos 区块链的支付服务器，提供安全、快速的加密货币支付解决方案。
+A blockchain-based payment server built on Aptos and EVM networks, providing secure and fast cryptocurrency payment solutions with multi-network support.
 
-## 功能特性
+## Features
 
-- 🔐 安全的支付处理
-- 🚀 基于 Aptos 区块链
-- 📡 RESTful API 接口
-- 🔄 实时交易状态查询
-- 📚 完整的 API 文档
-- 🐳 Docker 容器化部署
-- 🌐 Nginx 反向代理和 CORS 支持
+- 🔐 Secure payment processing
+- 🚀 Multi-blockchain support (Aptos, Ethereum, Celo)
+- 📡 RESTful API with OpenAPI 3.0 specification
+- 🔄 Real-time transaction status tracking
+- 📚 Comprehensive API documentation with Swagger UI
+- 🐳 Docker containerization
+- 🌐 Nginx reverse proxy with CORS support
+- ⚙️ Flexible configuration system (TOML/ENV)
+- 🔧 Code generation with oapi-codegen
 
-## 快速开始
+## Quick Start
 
-### 环境要求
+### Prerequisites
 
-- Docker 和 Docker Compose
-- Go 1.22+ (本地开发)
+- Docker and Docker Compose
+- Go 1.22+ (for local development)
 
-### 使用 Docker Compose 部署
+### Docker Deployment
 
-1. **克隆项目**
+1. **Clone the repository**
    ```bash
    git clone <repository-url>
    cd tinypay-server
    ```
 
-2. **配置环境变量**
+2. **Configure environment**
    ```bash
    cp .env.example .env
-   # 编辑 .env 文件，填入必要的配置
+   # Edit .env file with your configuration
+   # OR
+   cp config.toml.example config.toml
+   # Edit config.toml file (recommended for new deployments)
    ```
 
-3. **启动服务**
+3. **Start services**
    ```bash
-   # 构建并启动所有服务
+   # Build and start all services
    docker-compose up --build
 
-   # 后台运行
+   # Run in background
    docker-compose up -d --build
    ```
 
-4. **访问服务**
-   - API 服务: https://api-tinypay.predictplay.xyz (生产环境) 或 http://localhost (本地开发)
-   - API 文档: https://api-tinypay.predictplay.xyz/docs
-   - 健康检查: https://api-tinypay.predictplay.xyz/api/health
+4. **Access services**
+   - API Service: http://localhost:9090
+   - API Documentation: http://localhost:9090/docs
+   - Health Check: http://localhost:9090/api/health
+   - OpenAPI Spec: http://localhost:9090/openapi.yaml
 
-### 本地开发
+### Local Development
 
-1. **安装依赖**
+1. **Install dependencies**
    ```bash
    go mod download
    ```
 
-2. **配置环境变量**
+2. **Install development tools**
    ```bash
-   cp .env.example .env
-   # 编辑 .env 文件
+   make install
    ```
 
-3. **运行服务**
+3. **Configure environment**
    ```bash
-   go run main.go
+   cp config.toml.example config.toml
+   # Edit config.toml with your settings
    ```
 
-## 服务架构
+4. **Generate API code**
+   ```bash
+   make generate
+   ```
+
+5. **Run the server**
+   ```bash
+   make dev
+   # OR
+   go run .
+   ```
+
+## Architecture
 
 ```
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
@@ -76,211 +94,323 @@
                            │
                            ▼
                    ┌─────────────┐
-                   │   Aptos     │
+                   │ Multi-Chain │
                    │ Blockchain  │
+                   │ Networks    │
                    └─────────────┘
 ```
 
-## 配置说明
+## Configuration
 
-### 环境变量
+### Configuration Methods
 
-#### 基础配置
+The server supports two configuration methods:
 
-| 变量名 | 描述 | 默认值 |
-|--------|------|--------|
-| `PORT` | 服务端口 | `9090` |
+1. **TOML Configuration (Recommended)**: Use `config.toml` for structured configuration
+2. **Environment Variables**: Use `.env` file for legacy compatibility
 
-#### Aptos 网络配置
+### TOML Configuration
 
-| 变量名 | 描述 | 默认值 |
-|--------|------|--------|
-| `APTOS_NETWORK` | Aptos 网络 | `testnet` |
-| `APTOS_NODE_URL` | Aptos 节点 URL | `https://fullnode.testnet.aptoslabs.com/v1` |
-| `APTOS_FAUCET_URL` | Aptos 水龙头 URL | `https://faucet.testnet.aptoslabs.com` |
-| `CONTRACT_ADDRESS` | TinyPay 合约地址 | 必填 |
-| `USDC_METADATA_ADDRESS` | USDC 元数据地址 | 必填 |
-| `MERCHANT_PRIVATE_KEY` | 商户私钥 | 必填 |
-| `PAYMASTER_PRIVATE_KEY` | 付费主私钥 | 可选 |
+Create a `config.toml` file based on `config.toml.example`:
 
-#### Ethereum Sepolia 网络配置
+```toml
+# Aptos Network Configuration
+[aptos]
+network = "testnet"
+node_url = "https://fullnode.testnet.aptoslabs.com/v1"
+faucet_url = "https://faucet.testnet.aptoslabs.com"
 
-| 变量名 | 描述 | 默认值 |
-|--------|------|--------|
-| `ETH_SEPOLIA_RPC_URL` | Ethereum Sepolia RPC URL | 必填 |
-| `ETH_SEPOLIA_CHAIN_ID` | Ethereum Sepolia 链 ID | `11155111` |
-| `ETH_SEPOLIA_CONTRACT_ADDRESS` | TinyPay 合约地址 | 必填 |
-| `ETH_SEPOLIA_PRIVATE_KEY` | 私钥 | 必填 |
-| `ETH_SEPOLIA_USDC_ADDRESS` | USDC 代币地址 | 必填 |
+# Contract Configuration
+[contract]
+address = "0x5877584f4dbd72b5d101f32be3bea1eb67e96020ded3943919ddc80927c88893"
+usdc_metadata_address = "0x69091fbab5f7d635ee7ac5098cf0c1efbe31d68fec0f2cd565e8d168daf52832"
 
-#### Celo Sepolia 网络配置
+# Server Configuration
+[server]
+port = "9090"
 
-| 变量名 | 描述 | 默认值 |
-|--------|------|--------|
+# Gas Configuration
+[gas]
+max_gas_amount = 100000
+gas_unit_price = 100
+
+# Private Keys
+[keys]
+merchant_private_key = "0x..."
+paymaster_private_key = "0x..."
+
+# EVM Networks Configuration
+[[evm_networks]]
+name = "eth-sepolia"
+rpc_url = "https://sepolia.infura.io/v3/YOUR_PROJECT_ID"
+chain_id = 11155111
+contract_address = "0x..."
+private_key = "0x..."
+
+[evm_networks.native_token]
+symbol = "ETH"
+address = "0x0000000000000000000000000000000000000000"
+
+[[evm_networks.tokens]]
+symbol = "USDC"
+address = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
+
+[[evm_networks]]
+name = "celo-sepolia"
+rpc_url = "https://alfajores-forno.celo-testnet.org"
+chain_id = 44787
+contract_address = "0x..."
+private_key = "0x..."
+
+[evm_networks.native_token]
+symbol = "CELO"
+address = "0x0000000000000000000000000000000000000000"
+
+[[evm_networks.tokens]]
+symbol = "USDC"
+address = "0x01C5C0122039549AD1493B8220cABEdD739BC44E"
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Server port | `9090` |
+| `APTOS_NETWORK` | Aptos network | `testnet` |
+| `APTOS_NODE_URL` | Aptos node URL | `https://fullnode.testnet.aptoslabs.com/v1` |
+| `CONTRACT_ADDRESS` | TinyPay contract address | Required |
+| `MERCHANT_PRIVATE_KEY` | Merchant private key | Required |
+| `ETH_SEPOLIA_RPC_URL` | Ethereum Sepolia RPC URL | Required |
+| `ETH_SEPOLIA_CONTRACT_ADDRESS` | Ethereum contract address | Required |
 | `CELO_SEPOLIA_RPC_URL` | Celo Sepolia RPC URL | `https://alfajores-forno.celo-testnet.org` |
-| `CELO_SEPOLIA_CHAIN_ID` | Celo Sepolia 链 ID | `44787` |
-| `CELO_SEPOLIA_CONTRACT_ADDRESS` | TinyPay 合约地址 | 必填 |
-| `CELO_SEPOLIA_PRIVATE_KEY` | 私钥 | 必填 |
-| `CELO_SEPOLIA_USDC_ADDRESS` | USDC 代币地址 | `0x2F25deB3848C207fc8E0c34035B3Ba7fC157602B` |
 
-#### 可选配置
+## API Documentation
 
-| 变量名 | 描述 | 默认值 |
-|--------|------|--------|
-| `MAX_GAS_AMOUNT` | 最大 Gas 数量 | `2000` |
-| `GAS_UNIT_PRICE` | Gas 单价 | `100` |
+### Supported Networks
 
-### Docker 服务
+- **aptos-testnet**: Aptos testnet
+- **eth-sepolia**: Ethereum Sepolia testnet
+- **celo-sepolia**: Celo Sepolia testnet
 
-- **tinypay-server**: 主要的支付服务
-- **nginx**: 反向代理服务器，提供 CORS 支持和负载均衡
+### Supported Currencies
 
-## API 文档
+- **APT**: Aptos native token
+- **ETH**: Ethereum native token
+- **CELO**: Celo native token
+- **USDC**: USD Coin (available on all networks)
 
-### 主要端点
+### Main Endpoints
 
-- `GET /api/health` - 健康检查
-- `POST /api/payments` - 创建支付
-- `GET /api/payments/{hash}` - 查询交易状态
-- `GET /docs` - Swagger UI 文档
-- `GET /openapi.yaml` - OpenAPI 规范
+- `GET /api/health` - Health check
+- `POST /api/payments` - Create payment transaction
+- `GET /api/payments/{hash}?network={network}` - Query transaction status
+- `GET /docs` - Swagger UI documentation
+- `GET /openapi.yaml` - OpenAPI specification
 
-### 示例请求
+### Response Format
+
+All API responses follow a unified format:
+
+```json
+{
+  "code": 1000,
+  "data": { /* response data or null */ }
+}
+```
+
+### Status Codes
+
+#### Success Codes (1000-1999)
+- `1000`: Server running normally
+- `1001`: Transaction created successfully
+- `1002`: Transaction processing
+- `1003`: Transaction confirmed
+
+#### Error Codes (2000-2999)
+- `2000`: Amount must be greater than 0
+- `2001`: Amount exceeds limit
+- `2002`: Insufficient balance
+- `2003`: Invalid OTP
+- `2004`: Missing required fields
+- `2005`: Transaction not found
+- `2006`: Invalid currency type
+
+### Example Requests
 
 ```bash
-# 健康检查
-curl https://api-tinypay.predictplay.xyz/api/health
+# Health check
+curl http://localhost:9090/api/health
 
-# 创建支付
-curl -X POST https://api-tinypay.predictplay.xyz/api/payments \
+# Create payment (Aptos)
+curl -X POST http://localhost:9090/api/payments \
   -H "Content-Type: application/json" \
   -d '{
     "payer_addr": "0x1234...",
     "payee_addr": "0x5678...",
     "amount": 1000000,
+    "currency": "USDC",
+    "network": "aptos-testnet",
     "otp": "deadbeef"
   }'
+
+# Create payment (Ethereum)
+curl -X POST http://localhost:9090/api/payments \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payer_addr": "0x1234...",
+    "payee_addr": "0x5678...",
+    "amount": 1000000,
+    "currency": "USDC",
+    "network": "eth-sepolia"
+  }'
+
+# Query transaction status
+curl "http://localhost:9090/api/payments/0xabc123...?network=aptos-testnet"
 ```
 
-## 开发指南
+## Development
 
-### 项目结构
+### Project Structure
 
 ```
 .
-├── api/                 # OpenAPI 生成的代码和规范
-├── client/              # Aptos 客户端
-├── config/              # 配置管理
-├── handlers/            # HTTP 处理器
-├── examples/            # 使用示例
-├── docker-compose.yml   # Docker Compose 配置
-├── Dockerfile          # Docker 镜像构建
-├── nginx.conf          # Nginx 配置
-└── main.go             # 主程序入口
+├── api/                    # Generated API code and OpenAPI spec
+│   ├── openapi.yaml       # OpenAPI 3.0 specification
+│   ├── server.gen.go      # Generated server interfaces
+│   ├── types.gen.go       # Generated data types
+│   ├── client.gen.go      # Generated client code
+│   └── spec.gen.go        # Generated spec embedding
+├── client/                # Blockchain client implementations
+│   ├── aptos_client.go    # Aptos blockchain client
+│   └── evm_client.go      # EVM blockchain client
+├── config/                # Configuration management
+│   ├── config.go          # Configuration loading logic
+│   └── config_test.go     # Configuration tests
+├── cmd/                   # Command-line tools and utilities
+├── examples/              # Usage examples
+├── binds/                 # Smart contract bindings
+├── utils/                 # Utility functions
+├── main.go               # Application entry point
+├── Makefile              # Build automation
+├── docker-compose.yml    # Docker services configuration
+└── Dockerfile           # Container image definition
 ```
 
-### 构建和测试
+### Build Commands
 
 ```bash
-# 构建
-go build -o tinypay-server .
+# Install development tools
+make install
 
-# 测试
-go test ./...
-
-# 生成 API 代码
+# Generate API code from OpenAPI spec
 make generate
+
+# Build the application
+make build
+
+# Run in development mode
+make dev
+
+# Run tests
+make test
+
+# Clean generated files
+make clean
+
+# View available commands
+make help
 ```
 
-## 部署说明
+### Code Generation
 
-### SSL 证书配置
+The project uses **Design-First API development** with OpenAPI 3.0:
 
-项目已配置支持 HTTPS，使用 Let's Encrypt 证书：
+1. Define API in `api/openapi.yaml`
+2. Generate Go code with `oapi-codegen`
+3. Implement business logic in handlers
 
-1. **获取 SSL 证书**
+### Dependencies
+
+Key dependencies:
+- **github.com/getkin/kin-openapi**: OpenAPI 3.0 specification processing
+- **github.com/oapi-codegen/runtime**: Runtime utilities for generated code
+- **github.com/gin-gonic/gin**: HTTP web framework
+- **github.com/pelletier/go-toml/v2**: TOML configuration parsing
+
+## Deployment
+
+### Docker Services
+
+- **tinypay-server**: Main payment service
+- **nginx**: Reverse proxy with CORS support
+
+### Production Deployment
+
+1. **SSL Configuration**
    ```bash
-   # 使用 certbot 获取证书
-   sudo certbot certonly --nginx -d api-tinypay.predictplay.xyz
+   # Obtain SSL certificate
+   sudo certbot certonly --nginx -d your-domain.com
    ```
 
-2. **证书路径**
-   - 证书文件: `/etc/letsencrypt/live/api-tinypay.predictplay.xyz/fullchain.pem`
-   - 私钥文件: `/etc/letsencrypt/live/api-tinypay.predictplay.xyz/privkey.pem`
+2. **Security Setup**
+   - Use Docker secrets for sensitive data
+   - Configure firewall rules
+   - Enable monitoring and logging
 
-3. **自动续期**
-   ```bash
-   # 添加到 crontab
-   0 12 * * * /usr/bin/certbot renew --quiet && docker-compose restart nginx
-   ```
+3. **Performance Optimization**
+   - Adjust Nginx worker processes
+   - Configure connection pooling
+   - Monitor resource usage
 
-### 生产环境部署
+### Health Monitoring
 
-1. **确保 SSL 证书存在**
-   - 证书文件必须存在于指定路径
-   - Docker 容器会挂载主机的证书目录
+- Application logs: `./logs/`
+- Health endpoint: `/api/health`
+- Docker health checks enabled
 
-2. **安全配置**
-   - 使用 Docker secrets 管理敏感信息
-   - 配置防火墙规则
-   - 启用日志监控
+## Troubleshooting
 
-3. **性能优化**
-   - 调整 Nginx 工作进程数
-   - 配置连接池和缓存
-   - 监控资源使用情况
+### Common Issues
 
-### 监控和日志
+1. **Service won't start**
+   - Check configuration files
+   - Verify port availability
+   - Review Docker logs
 
-- 应用日志: `./logs/`
-- Nginx 日志: `./logs/nginx/`
-- 健康检查: `https://api-tinypay.predictplay.xyz/api/health`
-- SSL 证书状态: 可通过浏览器或 SSL 检查工具验证
+2. **CORS errors**
+   - Check Nginx configuration
+   - Verify request headers
 
-## 故障排除
+3. **Transaction failures**
+   - Check blockchain network connectivity
+   - Verify private keys and addresses
+   - Review transaction logs
 
-### 常见问题
-
-1. **服务无法启动**
-   - 检查环境变量配置
-   - 确认端口未被占用
-   - 查看 Docker 日志
-
-2. **CORS 错误**
-   - 检查 Nginx 配置
-   - 确认请求头设置正确
-
-3. **交易失败**
-   - 检查 Aptos 网络连接
-   - 验证私钥和地址
-   - 查看交易日志
-
-### 查看日志
+### Viewing Logs
 
 ```bash
-# 查看所有服务日志
+# View all service logs
 docker-compose logs
 
-# 查看特定服务日志
+# View specific service logs
 docker-compose logs tinypay-server
-docker-compose logs nginx
 
-# 实时日志
+# Follow logs in real-time
 docker-compose logs -f
 ```
 
-## 贡献指南
+## Contributing
 
-1. Fork 项目
-2. 创建功能分支
-3. 提交更改
-4. 推送到分支
-5. 创建 Pull Request
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
 
-## 许可证
+## License
 
 [MIT License](LICENSE)
 
-## 支持
+## Support
 
-如有问题，请创建 Issue 或联系维护团队。
+For issues and questions, please create an issue in the repository or contact the development team.
