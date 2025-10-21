@@ -95,3 +95,40 @@ address = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1"
 # [[evm_networks.tokens]]
 # symbol = "USDC"
 # address = "0x0000000000000000000000000000000000000000"
+
+# Solana Networks Configuration
+# You can add as many Solana networks as needed by adding more [[solana_networks]] sections
+# Each network must have a unique name
+
+[[solana_networks]]
+name = "solana-devnet"
+rpc_url = "https://api.devnet.solana.com"
+program_id = "88oZkwPMg9iWjPTUqYJXkRE2JYmFEvRraC6vYTcH9CGH"
+paymaster_private_key = "base58_encoded_private_key_here"
+
+# Native token configuration (SOL)
+[solana_networks.native_token]
+symbol = "SOL"
+
+# SPL tokens supported on this network
+[[solana_networks.tokens]]
+symbol = "USDC"
+address = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"  # USDC mint address on Solana
+
+[[solana_networks.tokens]]
+symbol = "USDT"
+address = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"  # USDT mint address on Solana
+
+# Example: Solana Mainnet configuration (uncomment and configure as needed)
+# [[solana_networks]]
+# name = "solana-mainnet"
+# rpc_url = "https://api.mainnet-beta.solana.com"
+# program_id = "YOUR_MAINNET_PROGRAM_ID"
+# paymaster_private_key = "base58_encoded_private_key_here"
+# 
+# [solana_networks.native_token]
+# symbol = "SOL"
+# 
+# [[solana_networks.tokens]]
+# symbol = "USDC"
+# address = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"

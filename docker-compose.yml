@@ -24,6 +24,7 @@ services:
       start_period: 10s
     volumes:
       - ./logs:/app/logs  # Map log directory to host (optional)
+      - ./conf:/app/conf  # Map conf directory to host
     networks:
       - tinypay-network
     logging:

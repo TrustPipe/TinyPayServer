@@ -5,7 +5,7 @@ A blockchain-based payment server built on Aptos and EVM networks, providing sec
 ## Features
 
 - 🔐 Secure payment processing
-- 🚀 Multi-blockchain support (Aptos, Ethereum, Celo)
+- 🚀 Multi-blockchain support (Aptos, Ethereum, Celo, **Solana**)
 - 📡 RESTful API with OpenAPI 3.0 specification
 - 🔄 Real-time transaction status tracking
 - 📚 Comprehensive API documentation with Swagger UI
@@ -169,6 +169,20 @@ address = "0x0000000000000000000000000000000000000000"
 [[evm_networks.tokens]]
 symbol = "USDC"
 address = "0x01C5C0122039549AD1493B8220cABEdD739BC44E"
+
+# Solana Networks
+[[solana_networks]]
+name = "solana-devnet"
+rpc_url = "https://api.devnet.solana.com"
+program_id = "88oZkwPMg9iWjPTUqYJXkRE2JYmFEvRraC6vYTcH9CGH"
+paymaster_private_key = "base58_encoded_private_key_here"
+
+[solana_networks.native_token]
+symbol = "SOL"
+
+[[solana_networks.tokens]]
+symbol = "USDC"
+address = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 ```
 
 ### Environment Variables
@@ -191,13 +205,17 @@ address = "0x01C5C0122039549AD1493B8220cABEdD739BC44E"
 - **aptos-testnet**: Aptos testnet
 - **eth-sepolia**: Ethereum Sepolia testnet
 - **celo-sepolia**: Celo Sepolia testnet
+- **solana-devnet**: Solana devnet (configurable)
+- **solana-mainnet**: Solana mainnet (configurable)
 
 ### Supported Currencies
 
 - **APT**: Aptos native token
 - **ETH**: Ethereum native token
 - **CELO**: Celo native token
+- **SOL**: Solana native token
 - **USDC**: USD Coin (available on all networks)
+- **USDT**: Tether (available on Solana)
 
 ### Main Endpoints
 
@@ -266,6 +284,18 @@ curl -X POST http://localhost:9090/api/payments \
 
 # Query transaction status
 curl "http://localhost:9090/api/payments/0xabc123...?network=aptos-testnet"
+
+# Create payment (Solana)
+curl -X POST http://localhost:9090/api/payments \
+  -H "Content-Type: application/json" \
+  -d '{
+    "payer_addr": "HN7cABqLq46Es1jh92dQQisAq662SmxELLLsHHe4YWrH",
+    "payee_addr": "GrDMoeqMLFjeXQ24H56S1RLgT4R76jsuWCd6SvXyGPQ5",
+    "amount": 1000000,
+    "currency": "SOL",
+    "network": "solana-devnet",
+    "otp": "deadbeef"
+  }'
 ```
 
 ## Development
@@ -410,6 +440,12 @@ docker-compose logs -f
 ## License
 
 [MIT License](LICENSE)
+
+## Documentation
+
+- [API Documentation](API_DOCUMENTATION.md) - Comprehensive API usage guide
+- [Solana Integration Guide](docs/SOLANA_INTEGRATION.md) - Solana blockchain integration details
+- [Config Migration Guide](CONFIG_MIGRATION.md) - Legacy .env to TOML migration
 
 ## Support
 

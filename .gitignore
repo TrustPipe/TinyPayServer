@@ -212,3 +212,5 @@ __debug_bin*
 tinypay-server
 main
 config.toml
+
+docs

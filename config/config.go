@@ -32,6 +32,27 @@ type EVMNetwork struct {
 	Tokens       []EVMToken     `toml:"tokens"`
 }
 
+// SolanaToken represents a Solana SPL token configuration
+type SolanaToken struct {
+	Symbol  string `toml:"symbol"`
+	Address string `toml:"address"` // Mint address for SPL tokens
+}
+
+// SolanaNativeToken represents Solana native token (SOL)
+type SolanaNativeToken struct {
+	Symbol string `toml:"symbol"`
+}
+
+// SolanaNetwork represents a single Solana network configuration
+type SolanaNetwork struct {
+	Name                string            `toml:"name"`
+	RPCURL              string            `toml:"rpc_url"`
+	ProgramID           string            `toml:"program_id"`
+	PaymasterPrivateKey string            `toml:"paymaster_private_key"`
+	NativeToken         SolanaNativeToken `toml:"native_token"`
+	Tokens              []SolanaToken     `toml:"tokens"`
+}
+
 // TomlConfig represents the TOML configuration structure
 type TomlConfig struct {
 	Aptos struct {
@@ -59,7 +80,8 @@ type TomlConfig struct {
 		PaymasterPrivateKey string `toml:"paymaster_private_key"`
 	} `toml:"keys"`
 	
-	EVMNetworks []EVMNetwork `toml:"evm_networks"`
+	EVMNetworks    []EVMNetwork    `toml:"evm_networks"`
+	SolanaNetworks []SolanaNetwork `toml:"solana_networks"`
 }
 
 // Config represents the application configuration (legacy structure for compatibility)
@@ -101,6 +123,9 @@ type Config struct {
 	
 	// EVM Networks (new array-based configuration)
 	EVMNetworks []EVMNetwork
+	
+	// Solana Networks (array-based configuration)
+	SolanaNetworks []SolanaNetwork
 }
 
 func LoadConfig() *Config {
@@ -151,6 +176,9 @@ func loadTomlConfig() *Config {
 		
 		// EVM networks (new array-based configuration)
 		EVMNetworks:           tomlConfig.EVMNetworks,
+		
+		// Solana networks (array-based configuration)
+		SolanaNetworks:        tomlConfig.SolanaNetworks,
 	}
 	
     // Legacy EVM fields are intentionally not set to avoid hardcoding network names.

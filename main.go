@@ -37,13 +37,27 @@ func main() {
 		}
 	}
 
+	// Initialize Solana clients for different networks
+	solanaClients := make(map[string]*client.SolanaClient)
+
+	// Initialize Solana clients from the SolanaNetworks configuration
+	for _, solanaNetwork := range cfg.SolanaNetworks {
+		solanaClient, err := client.NewSolanaClient(cfg, solanaNetwork.Name)
+		if err != nil {
+			log.Printf("Warning: Failed to initialize %s Solana client: %v. %s payments will not be available.", solanaNetwork.Name, err, solanaNetwork.Name)
+		} else {
+			solanaClients[solanaNetwork.Name] = solanaClient
+			log.Printf("%s Solana client initialized successfully (Paymaster: %s)", solanaNetwork.Name, solanaClient.GetPaymasterAddress())
+		}
+	}
+
 	log.Printf("Merchant address: %s", aptosClient.GetMerchantAddress())
 	if paymasterAddr := aptosClient.GetPaymasterAddress(); paymasterAddr != "" {
 		log.Printf("Paymaster address: %s", paymasterAddr)
 	}
 
 	// Initialize OpenAPI server
-	apiServer := api.NewAPIServer(aptosClient, evmClients, cfg)
+	apiServer := api.NewAPIServer(aptosClient, evmClients, solanaClients, cfg)
 
 	// Setup Gin router
 	router := gin.Default()

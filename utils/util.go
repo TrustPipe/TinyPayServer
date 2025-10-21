@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"tinypay-server/config"
+
+	"github.com/gagliardetto/solana-go"
 )
 
 // HexToASCIIBytes 将十六进制字符串转换为 ASCII 字节数组
@@ -78,13 +80,13 @@ func GetEVMNetworkConfig(cfg *config.Config, networkName string) *config.EVMNetw
 	if cfg == nil {
 		return nil
 	}
-	
+
 	for _, network := range cfg.EVMNetworks {
-		if strings.ToLower(network.Name) == strings.ToLower(networkName) {
+		if strings.EqualFold(network.Name, networkName) {
 			return &network
 		}
 	}
-	
+
 	return nil
 }
 
@@ -92,40 +94,40 @@ func GetEVMNetworkConfig(cfg *config.Config, networkName string) *config.EVMNetw
 func GetEVMTokenMappingByNetwork(cfg *config.Config, network string) map[string]string {
 	// First try to get token mapping from the new EVMNetworks configuration
 	for _, evmNetwork := range cfg.EVMNetworks {
-		if strings.ToLower(evmNetwork.Name) == strings.ToLower(network) {
+		if strings.EqualFold(evmNetwork.Name, network) {
 			tokenMapping := make(map[string]string)
-			
+
 			// Add native token
 			tokenMapping[evmNetwork.NativeToken.Symbol] = strings.ToLower(evmNetwork.NativeToken.Address)
-			
+
 			// Add ERC20 tokens
 			for _, token := range evmNetwork.Tokens {
 				tokenMapping[token.Symbol] = strings.ToLower(token.Address)
 			}
-			
+
 			return tokenMapping
 		}
 	}
-	
+
 	// If not found, return empty mapping (no hardcoded defaults)
 	return map[string]string{}
 }
 
 // GetEVMTokenMapping 获取EVM代币地址映射 (向后兼容，默认以太坊Sepolia)
 func GetEVMTokenMapping(cfg *config.Config) map[string]string {
-    if cfg == nil || len(cfg.EVMNetworks) == 0 {
-        return map[string]string{}
-    }
-    return GetEVMTokenMappingByNetwork(cfg, cfg.EVMNetworks[0].Name)
+	if cfg == nil || len(cfg.EVMNetworks) == 0 {
+		return map[string]string{}
+	}
+	return GetEVMTokenMappingByNetwork(cfg, cfg.EVMNetworks[0].Name)
 }
 
 // GetEVMTokenAddressByNetwork 根据币种获取EVM代币地址 (支持多网络)
 func GetEVMTokenAddressByNetwork(cfg *config.Config, currency string, network string) (string, error) {
-    if currency == "" {
-        if netCfg := GetEVMNetworkConfig(cfg, network); netCfg != nil {
-            currency = netCfg.NativeToken.Symbol
-        }
-    }
+	if currency == "" {
+		if netCfg := GetEVMNetworkConfig(cfg, network); netCfg != nil {
+			currency = netCfg.NativeToken.Symbol
+		}
+	}
 
 	tokenMapping := GetEVMTokenMappingByNetwork(cfg, network)
 	tokenAddress, exists := tokenMapping[strings.ToUpper(currency)]
@@ -138,10 +140,10 @@ func GetEVMTokenAddressByNetwork(cfg *config.Config, currency string, network st
 
 // GetEVMTokenAddress 根据币种获取EVM代币地址 (向后兼容，默认以太坊Sepolia)
 func GetEVMTokenAddress(cfg *config.Config, currency string) (string, error) {
-    if cfg == nil || len(cfg.EVMNetworks) == 0 {
-        return "", fmt.Errorf("no EVM networks configured")
-    }
-    return GetEVMTokenAddressByNetwork(cfg, currency, cfg.EVMNetworks[0].Name)
+	if cfg == nil || len(cfg.EVMNetworks) == 0 {
+		return "", fmt.Errorf("no EVM networks configured")
+	}
+	return GetEVMTokenAddressByNetwork(cfg, currency, cfg.EVMNetworks[0].Name)
 }
 
 // GetCurrencyFromEVMTokenAddressByNetwork 根据EVM代币地址获取币种名称 (支持多网络)
@@ -158,10 +160,10 @@ func GetCurrencyFromEVMTokenAddressByNetwork(cfg *config.Config, tokenAddress st
 
 // GetCurrencyFromEVMTokenAddress 根据EVM代币地址获取币种名称 (向后兼容，默认以太坊Sepolia)
 func GetCurrencyFromEVMTokenAddress(cfg *config.Config, tokenAddress string) string {
-    if cfg == nil || len(cfg.EVMNetworks) == 0 {
-        return "UNKNOWN"
-    }
-    return GetCurrencyFromEVMTokenAddressByNetwork(cfg, tokenAddress, cfg.EVMNetworks[0].Name)
+	if cfg == nil || len(cfg.EVMNetworks) == 0 {
+		return "UNKNOWN"
+	}
+	return GetCurrencyFromEVMTokenAddressByNetwork(cfg, tokenAddress, cfg.EVMNetworks[0].Name)
 }
 
 // GetCurrencyFromMetadata 根据 metadata 地址获取币种名称（反向映射）
@@ -184,24 +186,24 @@ func GetCurrencyFromMetadata(cfg *config.Config, metadataAddr string) string {
 
 // NetworkCurrencyValidationMatrix 定义网络-货币组合验证矩阵
 type NetworkCurrencyValidationMatrix struct {
-    validCombinations map[string][]string
+	validCombinations map[string][]string
 }
 
 // NewNetworkCurrencyValidationMatrix 创建新的网络-货币验证矩阵
 func NewNetworkCurrencyValidationMatrix(cfg *config.Config) *NetworkCurrencyValidationMatrix {
-    combos := map[string][]string{
-        "aptos-testnet": {"APT", "USDC"},
-    }
-    if cfg != nil {
-        for _, net := range cfg.EVMNetworks {
-            currencies := []string{strings.ToUpper(net.NativeToken.Symbol)}
-            for _, t := range net.Tokens {
-                currencies = append(currencies, strings.ToUpper(t.Symbol))
-            }
-            combos[strings.ToLower(net.Name)] = currencies
-        }
-    }
-    return &NetworkCurrencyValidationMatrix{validCombinations: combos}
+	combos := map[string][]string{
+		"aptos-testnet": {"APT", "USDC"},
+	}
+	if cfg != nil {
+		for _, net := range cfg.EVMNetworks {
+			currencies := []string{strings.ToUpper(net.NativeToken.Symbol)}
+			for _, t := range net.Tokens {
+				currencies = append(currencies, strings.ToUpper(t.Symbol))
+			}
+			combos[strings.ToLower(net.Name)] = currencies
+		}
+	}
+	return &NetworkCurrencyValidationMatrix{validCombinations: combos}
 }
 
 // IsValidCombination 检查网络-货币组合是否有效
@@ -235,7 +237,7 @@ func (m *NetworkCurrencyValidationMatrix) GetSupportedNetworks() []string {
 
 // ValidateNetworkCurrencyCombination 验证网络-货币组合并返回详细错误信息
 func ValidateNetworkCurrencyCombination(cfg *config.Config, network, currency string) error {
-    matrix := NewNetworkCurrencyValidationMatrix(cfg)
+	matrix := NewNetworkCurrencyValidationMatrix(cfg)
 
 	// 检查网络是否支持
 	supportedNetworks := matrix.GetSupportedNetworks()
@@ -264,45 +266,45 @@ func ValidateNetworkCurrencyCombination(cfg *config.Config, network, currency st
 
 // GetDefaultCurrencyForNetwork 获取网络的默认货币
 func GetDefaultCurrencyForNetwork(cfg *config.Config, network string) string {
-    if strings.ToLower(network) == "aptos-testnet" {
-        return "APT"
-    }
-    if netCfg := GetEVMNetworkConfig(cfg, network); netCfg != nil {
-        return strings.ToUpper(netCfg.NativeToken.Symbol)
-    }
-    return ""
+	if strings.ToLower(network) == "aptos-testnet" {
+		return "APT"
+	}
+	if netCfg := GetEVMNetworkConfig(cfg, network); netCfg != nil {
+		return strings.ToUpper(netCfg.NativeToken.Symbol)
+	}
+	return ""
 }
 
 // IsNativeCurrency 检查货币是否为指定网络的原生货币
 func IsNativeCurrency(cfg *config.Config, network, currency string) bool {
-    if strings.ToLower(network) == "aptos-testnet" {
-        return strings.EqualFold(currency, "APT")
-    }
-    if netCfg := GetEVMNetworkConfig(cfg, network); netCfg != nil {
-        return strings.EqualFold(strings.ToUpper(currency), strings.ToUpper(netCfg.NativeToken.Symbol))
-    }
-    return false
+	if strings.ToLower(network) == "aptos-testnet" {
+		return strings.EqualFold(currency, "APT")
+	}
+	if netCfg := GetEVMNetworkConfig(cfg, network); netCfg != nil {
+		return strings.EqualFold(strings.ToUpper(currency), strings.ToUpper(netCfg.NativeToken.Symbol))
+	}
+	return false
 }
 
 // ValidateTokenAddressForNetworkCurrency 验证代币地址是否与网络-货币组合匹配
 func ValidateTokenAddressForNetworkCurrency(cfg *config.Config, network, currency, tokenAddress string) error {
 	// 首先验证网络-货币组合是否有效
-    if err := ValidateNetworkCurrencyCombination(cfg, network, currency); err != nil {
-        return err
-    }
+	if err := ValidateNetworkCurrencyCombination(cfg, network, currency); err != nil {
+		return err
+	}
 
 	// 获取预期的代币地址
 	var expectedAddress string
 	var err error
 
-    switch strings.ToLower(network) {
-    case "aptos-testnet":
-        // Aptos 使用 metadata 地址而不是代币地址
-        expectedAddress, err = GetMetadataAddress(cfg, currency)
-    default:
-        // Any configured EVM network
-        expectedAddress, err = GetEVMTokenAddressByNetwork(cfg, currency, network)
-    }
+	switch strings.ToLower(network) {
+	case "aptos-testnet":
+		// Aptos 使用 metadata 地址而不是代币地址
+		expectedAddress, err = GetMetadataAddress(cfg, currency)
+	default:
+		// Any configured EVM network
+		expectedAddress, err = GetEVMTokenAddressByNetwork(cfg, currency, network)
+	}
 
 	if err != nil {
 		return fmt.Errorf("failed to get expected token address for %s on %s: %w", currency, network, err)
@@ -315,4 +317,74 @@ func ValidateTokenAddressForNetworkCurrency(cfg *config.Config, network, currenc
 	}
 
 	return nil
+}
+
+// ParseSolanaPublicKey parses a Solana public key from base58 string
+func ParseSolanaPublicKey(address string) (solana.PublicKey, error) {
+	pubkey, err := solana.PublicKeyFromBase58(address)
+	if err != nil {
+		return solana.PublicKey{}, fmt.Errorf("invalid Solana address: %w", err)
+	}
+	return pubkey, nil
+}
+
+// GetSolanaNetworkConfig returns the Solana network configuration by name
+func GetSolanaNetworkConfig(cfg *config.Config, networkName string) *config.SolanaNetwork {
+	if cfg == nil {
+		return nil
+	}
+
+	for i := range cfg.SolanaNetworks {
+		if strings.EqualFold(cfg.SolanaNetworks[i].Name, networkName) {
+			return &cfg.SolanaNetworks[i]
+		}
+	}
+
+	return nil
+}
+
+// GetSolanaTokenMappingByNetwork 获取Solana代币地址映射 (支持多网络)
+func GetSolanaTokenMappingByNetwork(cfg *config.Config, network string) map[string]string {
+	for _, solanaNetwork := range cfg.SolanaNetworks {
+		if strings.EqualFold(solanaNetwork.Name, network) {
+			tokenMapping := make(map[string]string)
+
+			// Add native token (SOL)
+			tokenMapping[solanaNetwork.NativeToken.Symbol] = ""
+
+			// Add SPL tokens
+			for _, token := range solanaNetwork.Tokens {
+				tokenMapping[strings.ToUpper(token.Symbol)] = strings.ToLower(token.Address)
+			}
+
+			return tokenMapping
+		}
+	}
+
+	return map[string]string{}
+}
+
+// GetSolanaTokenAddressByNetwork 获取特定网络的代币地址
+func GetSolanaTokenAddressByNetwork(cfg *config.Config, currency, network string) (string, error) {
+	tokenMapping := GetSolanaTokenMappingByNetwork(cfg, network)
+	address, exists := tokenMapping[strings.ToUpper(currency)]
+	if !exists {
+		return "", fmt.Errorf("currency %s not supported on Solana network %s", currency, network)
+	}
+
+	// Empty address means native SOL
+	if address == "" {
+		return "SOL_NATIVE", nil
+	}
+
+	return address, nil
+}
+
+// GetDefaultCurrencyForSolanaNetwork 获取Solana网络的默认币种
+func GetDefaultCurrencyForSolanaNetwork(cfg *config.Config, network string) string {
+	netCfg := GetSolanaNetworkConfig(cfg, network)
+	if netCfg != nil {
+		return strings.ToUpper(netCfg.NativeToken.Symbol)
+	}
+	return "SOL"
 }
