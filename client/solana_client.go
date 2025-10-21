@@ -158,10 +158,10 @@ func (sc *SolanaClient) CompletePayment(
 		instructionData,
 	)
 
-	// Get recent blockhash
-	recent, err := sc.client.GetRecentBlockhash(ctx, rpc.CommitmentFinalized)
+	// Get latest blockhash (replaces deprecated GetRecentBlockhash)
+	recent, err := sc.client.GetLatestBlockhash(ctx, rpc.CommitmentFinalized)
 	if err != nil {
-		return solana.Signature{}, fmt.Errorf("failed to get recent blockhash: %w", err)
+		return solana.Signature{}, fmt.Errorf("failed to get latest blockhash: %w", err)
 	}
 
 	// Build and sign transaction
@@ -194,12 +194,19 @@ func (sc *SolanaClient) CompletePayment(
 	return sig, nil
 }
 
+// computeAnchorDiscriminator computes the Anchor discriminator for an instruction
+// Discriminator = first 8 bytes of SHA256("global:function_name")
+func computeAnchorDiscriminator(functionName string) []byte {
+	preimage := "global:" + functionName
+	hash := sha256.Sum256([]byte(preimage))
+	return hash[:8]
+}
+
 // buildCompletePaymentInstruction constructs the instruction data for complete_payment
 // Format: [discriminator(8)] + [otp_len(4)] + [otp] + [amount(8)]
 func buildCompletePaymentInstruction(otp []byte, amount uint64) []byte {
-	// TODO: Get the correct discriminator from IDL
-	// For now using a placeholder - you need to calculate this from "global:complete_payment"
-	discriminator := []byte{0xf3, 0x7f, 0x5e, 0x3c, 0x9f, 0x3a, 0x8a, 0x7b}
+	// Calculate the correct discriminator for "complete_payment"
+	discriminator := computeAnchorDiscriminator("complete_payment")
 
 	data := make([]byte, 0)
 	data = append(data, discriminator...)

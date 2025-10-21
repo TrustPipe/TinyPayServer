@@ -195,7 +195,17 @@ func NewNetworkCurrencyValidationMatrix(cfg *config.Config) *NetworkCurrencyVali
 		"aptos-testnet": {"APT", "USDC"},
 	}
 	if cfg != nil {
+		// Add EVM networks
 		for _, net := range cfg.EVMNetworks {
+			currencies := []string{strings.ToUpper(net.NativeToken.Symbol)}
+			for _, t := range net.Tokens {
+				currencies = append(currencies, strings.ToUpper(t.Symbol))
+			}
+			combos[strings.ToLower(net.Name)] = currencies
+		}
+		
+		// Add Solana networks
+		for _, net := range cfg.SolanaNetworks {
 			currencies := []string{strings.ToUpper(net.NativeToken.Symbol)}
 			for _, t := range net.Tokens {
 				currencies = append(currencies, strings.ToUpper(t.Symbol))
@@ -272,6 +282,9 @@ func GetDefaultCurrencyForNetwork(cfg *config.Config, network string) string {
 	if netCfg := GetEVMNetworkConfig(cfg, network); netCfg != nil {
 		return strings.ToUpper(netCfg.NativeToken.Symbol)
 	}
+	if netCfg := GetSolanaNetworkConfig(cfg, network); netCfg != nil {
+		return strings.ToUpper(netCfg.NativeToken.Symbol)
+	}
 	return ""
 }
 
@@ -281,6 +294,9 @@ func IsNativeCurrency(cfg *config.Config, network, currency string) bool {
 		return strings.EqualFold(currency, "APT")
 	}
 	if netCfg := GetEVMNetworkConfig(cfg, network); netCfg != nil {
+		return strings.EqualFold(strings.ToUpper(currency), strings.ToUpper(netCfg.NativeToken.Symbol))
+	}
+	if netCfg := GetSolanaNetworkConfig(cfg, network); netCfg != nil {
 		return strings.EqualFold(strings.ToUpper(currency), strings.ToUpper(netCfg.NativeToken.Symbol))
 	}
 	return false

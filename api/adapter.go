@@ -235,6 +235,8 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 			currency = "APT"
 		} else if netCfg := utils.GetEVMNetworkConfig(s.config, network); netCfg != nil {
 			currency = strings.ToUpper(netCfg.NativeToken.Symbol)
+		} else if netCfg := utils.GetSolanaNetworkConfig(s.config, network); netCfg != nil {
+			currency = strings.ToUpper(netCfg.NativeToken.Symbol)
 		}
 	}
 
@@ -271,8 +273,12 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 
 	var coinType string
 	var err error
-	switch network {
-	case "aptos-testnet":
+	
+	// Determine if this is a Solana network
+	isSolanaNetwork := s.getSolanaClient(network) != nil
+	
+	switch {
+	case network == "aptos-testnet":
 		// Get coin type from currency mapping
 		coinType, err = utils.GetCoinType(s.aptosClient.GetConfig(), currency)
 		if err != nil {
@@ -281,6 +287,10 @@ func (s *APIServer) CreatePayment(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, response)
 			return
 		}
+	case isSolanaNetwork:
+		// For Solana networks, use the currency as the coin type
+		coinType = currency
+		// No additional validation needed here, will be validated later
 	default:
 		// For EVM networks, we'll use the currency directly as the token identifier
 		coinType = currency
