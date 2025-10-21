@@ -330,11 +330,14 @@ func (sc *SolanaClient) GetTransactionDetails(ctx context.Context, signature str
 	}
 
 	// Get transaction with details
+	maxSupportedTransactionVersion := uint64(0)
 	out, err := sc.client.GetTransaction(
 		ctx,
 		sig,
 		&rpc.GetTransactionOpts{
-			Encoding: solana.EncodingBase64,
+			Encoding:                       solana.EncodingBase64,
+			MaxSupportedTransactionVersion: &maxSupportedTransactionVersion,
+			Commitment:                     rpc.CommitmentConfirmed,
 		},
 	)
 
@@ -350,17 +353,33 @@ func (sc *SolanaClient) GetTransactionDetails(ctx context.Context, signature str
 
 	// Check if transaction succeeded
 	success := out.Meta.Err == nil
+	
+	var errorMsg string
+	if out.Meta.Err != nil {
+		errorMsg = fmt.Sprintf("%v", out.Meta.Err)
+	}
 
-	// Extract amount from transaction (this is simplified, you may need to parse logs)
+	// Extract amount from transaction by parsing instruction data
 	amount := uint64(0)
-	// TODO: Parse transaction logs or account data changes to extract the actual payment amount
+	if out.Transaction != nil {
+		tx, err := out.Transaction.GetTransaction()
+		if err == nil && len(tx.Message.Instructions) > 0 {
+			// Get the first instruction (complete_payment)
+			instruction := tx.Message.Instructions[0]
+			if len(instruction.Data) >= 20 { // discriminator(8) + otp_len(4) + amount(8)
+				// Amount is at the end of instruction data (last 8 bytes)
+				amountOffset := len(instruction.Data) - 8
+				amount = binary.LittleEndian.Uint64(instruction.Data[amountOffset:])
+			}
+		}
+	}
 
 	return &TransactionInfo{
 		Confirmed: true,
 		Success:   success,
 		Amount:    amount,
 		CoinType:  "SOL", // Default to SOL, can be extended for SPL tokens
-		Error:     "",
+		Error:     errorMsg,
 	}, nil
 }
 
